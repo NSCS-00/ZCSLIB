@@ -1,0 +1,43 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+version = '0.2.0'
+group = 'zcslib'
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = '21.1.228'
+
+    runs {
+        client { client() }
+        server { server() }
+    }
+
+    mods {
+        zcslib {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+// BUILDID System: embed build identifier into JAR manifest
+def buildId = System.getProperty("build.id", "BUILD.00000000")
+tasks.named('jar', Jar) {
+    manifest {
+        attributes(
+            'Build-ID': buildId,
+            'Build-Time': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+            'Implementation-Title': 'ZCSLIB',
+            'Implementation-Version': project.version,
+            'Specification-Vendor': 'DLZ Studio'
+        )
+    }
+}
+
+dependencies {
+    // ZCSLIB is a pure runtime host
+    // Gson: available at runtime via Minecraft; compileOnly for PEC parsing
+    compileOnly 'com.google.code.gson:gson:2.10.1'
+}
