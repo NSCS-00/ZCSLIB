@@ -1,6 +1,8 @@
 package zcslib;
 
 import zcslib.kernel.ZCSKernel;
+import zcslib.log.CrashHandler;
+import zcslib.log.LogRotator;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -52,6 +54,11 @@ public class ZCSLIB {
         LOGGER.info("");
 
         LOGGER.info("ZCSLIB Kernel v{} initializing...", VERSION);
+
+        // Phase 10: Install crash handler + run log rotation
+        CrashHandler.install();
+        LogRotator.rotateAll();
+
         kernel = new ZCSKernel(FMLPaths.GAMEDIR.get());
         LOGGER.info("ZCSLIB Kernel v{} initialized — {} plugin(s) online.",
                 VERSION, kernel.getPluginCount());

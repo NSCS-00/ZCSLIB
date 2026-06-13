@@ -11,6 +11,7 @@ import zcslib.persistence.PDCBackend;
 import zcslib.resource.ZCSResourceManager;
 import zcslib.scheduler.ZCSScheduler;
 import zcslib.service.ServiceRegistry;
+import zcslib.network.ZCSNetwork;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,6 +37,7 @@ public class ZCSKernel {
     private final PDCBackend pdcBackend;
     private final ZCSLEventBus eventBus;
     private final ServiceRegistry serviceRegistry;
+    private final ZCSNetwork network;
 
     public ZCSKernel(Path gameDir) {
         this.logger = new ZCSLogger("zcslib", TrustLevel.N,
@@ -61,7 +63,10 @@ public class ZCSKernel {
         this.eventBus = new ZCSLEventBus(this.logger);
         this.serviceRegistry = new ServiceRegistry(this.logger);
 
-        logger.info("Kernel core loaded (M3 — EventBus+Services online, scanning plugins...)");
+        // Phase 9 (M4): Init network layer
+        this.network = new ZCSNetwork(this);
+
+        logger.info("Kernel core loaded (M4 — Network online, scanning plugins...)");
 
         // Phase 3: Discover and load plugins
         this.pluginLoader = new PluginLoader(this, gameDir, resourceManager);
@@ -113,6 +118,11 @@ public class ZCSKernel {
         if (command.startsWith("scheduler:")) {
             String sAction = command.substring("scheduler:".length());
             return scheduler.dispatch(sAction, args, TrustLevel.N);
+        }
+
+        // ── network:* ──────────────────────────────────────
+        if (command.startsWith("network:")) {
+            return dispatchNetwork(command, args);
         }
 
         // ── resource:* ───────────────────────────────────────
@@ -271,6 +281,13 @@ public class ZCSKernel {
         };
     }
 
+    private OrderResult dispatchNetwork(String command, Object... args) {
+        String action = command.substring("network:".length());
+        TrustLevel trust = (args.length > 2 && args[args.length - 1] instanceof TrustLevel t)
+                ? t : TrustLevel.N;
+        return network.order(action, args);
+    }
+
     // ── Internal helpers ─────────────────────────────────────
 
     /** Resolve a plugin's trust level from the loader registry. */
@@ -286,6 +303,7 @@ public class ZCSKernel {
     public ZCSScheduler getScheduler()                   { return scheduler; }
     public ZCSLEventBus getEventBus()                    { return eventBus; }
     public ServiceRegistry getServiceRegistry()          { return serviceRegistry; }
+    public ZCSNetwork getNetwork()                        { return network; }
     public PluginDescriptor getPlugin(String pluginId)  { return pluginLoader.getPlugin(pluginId); }
     public Collection<PluginDescriptor> getAllPlugins() { return pluginLoader.getAllPlugins(); }
     public int getPluginCount()                         { return pluginLoader.getPluginCount(); }

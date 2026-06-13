@@ -37,6 +37,12 @@ public class ZCSLogger {
      * @param trust     trust level assigned by the kernel
      * @param logDir    directory where {@code {plugin_id}.log} will be written
      */
+    /** Create a logger for kernel-internal subsystems. */
+    public static ZCSLogger forKernel(String subSystem) {
+        return new ZCSLogger("zcslib/" + subSystem, TrustLevel.N,
+                Path.of("logs", "zcslib"));
+    }
+
     public ZCSLogger(String pluginId, TrustLevel trust, Path logDir) {
         this.pluginId = pluginId;
         this.trust = trust;
@@ -50,6 +56,11 @@ public class ZCSLogger {
     public void warn(String msg, Object... args)  { log(Level.WARN,  msg, args); }
     public void error(String msg, Object... args) { log(Level.ERROR, msg, args); }
     public void debug(String msg, Object... args) { log(Level.DEBUG, msg, args); }
+
+    /** Audit log entry prefixed with [AUDIT] tag. */
+    public void audit(String category, String level, String detail) {
+        log(Level.INFO, "[AUDIT][%s][%s] %s", category, level, detail);
+    }
 
     // ── Lifecycle ───────────────────────────────────────────────
 
