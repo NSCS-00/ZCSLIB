@@ -1,5 +1,6 @@
 package zcslib.loader;
 
+import zcslib.api.OrderResult;
 import zcslib.api.PluginContext;
 import zcslib.api.TrustLevel;
 import zcslib.kernel.ZCSKernel;
@@ -38,4 +39,9 @@ class SimplePluginContext implements PluginContext {
     @Override public ZCSLogger getLogger()    { return logger; }
     @Override public TrustLevel getTrustLevel(){ return trustLevel; }
     @Override public ZCSKernel kernel()       { return kernel; }
+
+    @Override
+    public OrderResult order(String command, Object... args) {
+        return kernel.orderTraced(pluginId, command, args);
+    }
 }

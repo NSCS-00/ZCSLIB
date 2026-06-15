@@ -1,73 +1,75 @@
-# 03 — PluginContext 接口
+# 03 — PluginContext 插件上下文
 
-`PluginContext` 是 ZCSLIB 插件与内核通信的唯一入口。插件构造时由 ZCSLIB 注入。
-
----
-
-## 包名约定
-
-每个插件的包名应为 `zcslib.[插件ID]`。因此典型的入口类文件路径为：
-
-```
-src/main/java/zcslib/[插件ID小写无连字符]/MyPlugin.java
-```
-
-例如插件 ID `energy-grid` → 包名 `zcslib.energygrid` → 文件路径 `src/main/java/zcslib/energygrid/EnergyGridPlugin.java`
+**版本**: v0.2.0-M5
+**关联**: ZCSLIB 插件开发者文档
 
 ---
 
-## 七个方法
+## 3.1 概述
+
+`PluginContext` 是插件与 ZCSLIB 内核交互的**唯一入口**。每个插件在加载时被注入自己的 `PluginContext` 实例，提供 8 个方法：
+
+| 方法 | 返回类型 | 说明 |
+|---|---|---|
+| `getPluginId()` | `String` | 插件唯一标识符（PEC 中声明的 pluginId） |
+| `getDataFolder()` | `File` | 插件持久化数据目录 `plugins/{id}/data/` |
+| `getConfigFolder()` | `File` | 插件配置目录 `plugins/{id}/config/` |
+| `getCacheDir()` | `File` | 插件缓存目录 `cache/{id}/` |
+| `getLogger()` | `ZCSLogger` | 插件专属日志记录器 |
+| `getTrustLevel()` | `TrustLevel` | 当前插件的信任等级（N/R/A/S） |
+| `kernel()` | `ZCSKernel` | 内核访问器（用于非 order 接口） |
+| `order()` | `OrderResult` | 内核指令调用快捷方法（推荐） |
+
+---
+
+## 3.2 各方法详解
 
 ### getPluginId()
 
 ```java
 String id = ctx.getPluginId();
-// → "energy-grid"
+// → "iems"
 ```
 
-返回 PEC 中声明的插件 ID，全局唯一。插件不能修改此值。
+插件加载时由 PEC 中的 `pluginId` 字段决定。运行时不可变。
 
 ### getDataFolder()
 
 ```java
 File dataDir = ctx.getDataFolder();
-// → config/DLZstudio/ZCSLIB/plugins/energy-grid/data/
+// → config/DLZstudio/ZCSLIB/plugins/iems/data/
 ```
 
-插件持久化数据的专用目录，已自动创建。
+自动创建目录。用于存储插件运行时产生的持久化数据（如数据库文件、缓存索引）。
 
 ### getConfigFolder()
 
 ```java
 File configDir = ctx.getConfigFolder();
-// → config/DLZstudio/ZCSLIB/plugins/energy-grid/config/
+// → config/DLZstudio/ZCSLIB/plugins/iems/config/
 ```
 
-JSON 配置文件（ConfigManager）的存放目录。
+自动创建目录。用于存放插件配置文件。
 
 ### getCacheDir()
 
 ```java
 File cacheDir = ctx.getCacheDir();
-// → config/DLZstudio/ZCSLIB/cache/energy-grid/
+// → config/DLZstudio/ZCSLIB/cache/iems/
 ```
 
-临时缓存文件目录，重启后可被清除。
+自动创建目录。内核可能定期清理。不要在此存放持久化数据。
 
 ### getLogger()
 
 ```java
-ZCSLogger log = ctx.getLogger();
-log.info("玩家 %s 加入了世界", playerName);
-log.warn("能源不足: 当前 %.1f / 需要 %.1f", current, required);
-log.error("电网连接失败: %s", e.getMessage());
+ZCSLogger LOG = ctx.getLogger();
+LOG.info("Plugin initialized");
+// [2026-06-15 20:00:00.000] [INFO] [N/iems] [Main]: Plugin initialized
 ```
 
-SLF4J 双轨输出：
-- Minecraft 控制台（游戏内可见）
-- `logs/zcslib/{pluginId}.log`（文件持久化）
-
-所有 `%d/%f/%x` 格式符统一使用 `%s`（内核 `formatSafe()` 兼容层）。
+日志格式固定：`[{TIME}] [{LEVEL}] [{TRUST}/{PLUGIN_ID}] [{THREAD}]: {MESSAGE}`。
+同时输出到 MC 控制台和独立日志文件 `logs/zcslib/iems.log`。
 
 ### getTrustLevel()
 
@@ -80,80 +82,169 @@ if (level == TrustLevel.N) {
 }
 ```
 
-返回插件信任等级（N/R/A/S），由 ZCSLIB 加载时确定，**运行时不可变**。
-
-### kernel()
-
-```java
-ZCSKernel kernel = ctx.kernel();
-
-// 字符串指令模式
-OrderResult r = kernel.order("service:register", ctx.getPluginId(),
-    "myService", "描述", provider);
-
-kernel.order("scheduler:compute", ctx.getPluginId(), () -> {
-    doHeavyWork();
-    kernel.order("scheduler:queueSync", ctx.getPluginId(), () -> {
-        applyResultToWorld();
-    });
-});
-```
-
-`ZCSKernel` 是插件与 ZCSLIB 六大子系统的唯一交互通道。完整指令集见《04 — kernel.order() 指令全集》。
+信任等级决定了插件可用的指令范围（详见 [10-trust-system.md](./10-trust-system.md)）。
 
 ---
 
-## 典型插件骨架
+## 3.3 kernel() 与 order()
+
+`ZCSKernel` 是插件与 ZCSLIB 九大子系统（event/service/scheduler/config/pdc/resource/network/audit/memory）的交互通道。
+
+**推荐使用 `ctx.order()` 而非 `ctx.kernel().order()`。**
+
+`ctx.order()` 等价于 `ctx.kernel().order()`，但额外自动记录 L1/L2 调用链追踪，供梦擎分析使用。这是插件调用内核的**首选方式**。
+
+只有在需要访问非 order 接口（如 `getPluginVersion()`）时才直接调用 `ctx.kernel()`。
+
+```java
+// ✅ 推荐
+OrderResult r = ctx.order("service:get", IEMSService.class);
+
+// ⚠️ 仅在需要非 order 方法时
+String v = ctx.kernel().getPluginVersion("iems");
+```
+
+---
+
+## 3.4 典型插件骨架
 
 ```java
 package zcslib.myplugin;
 
-import zcslib.api.PluginContext;
-import zcslib.api.OrderResult;
-import zcslib.api.TrustLevel;
+import zcslib.api.*;
 
 public class MyPlugin {
 
-    private final PluginContext ctx;
+    private PluginContext ctx;
 
-    public MyPlugin(PluginContext ctx) {
+    public void onLoad(PluginContext ctx) {
         this.ctx = ctx;
-
-        ctx.getLogger().info("插件启动: id=%s trust=%s version=%s",
-            ctx.getPluginId(),
-            ctx.getTrustLevel(),
-            ctx.kernel().getPluginVersion(ctx.getPluginId()));
-
-        // 初始化数据目录
-        File dataDir = ctx.getDataFolder();
-        if (!dataDir.exists()) dataDir.mkdirs();
-
-        // 注册服务
-        registerServices();
-
-        // 订阅事件
-        ctx.kernel().order("event:register", ctx.getPluginId(), this);
-
-        ctx.getLogger().info("启动完成。");
     }
 
-    private void registerServices() {
-        ctx.kernel().order("service:register", ctx.getPluginId(),
-            "getStatus", "获取插件状态", (ServiceProvider) name -> "OK");
+    public void onEnable() {
+        // 1. 注册服务
+        ctx.order("service:register", MyService.class, new MyServiceImpl());
+
+        // 2. 订阅事件
+        ctx.order("event:register", new Object() {
+            @Subscribe
+            void onTick(ServerTickEvent e) {
+                ctx.order("event:post", new MyTickEvent());
+            }
+        });
+
+        // 3. 加载配置
+        OrderResult r = ctx.order("config:load", "settings.json");
+        if (r.isOk()) {
+            // parse config
+        }
+
+        ctx.getLogger().info("MyPlugin enabled");
     }
 
-    @Subscribe
-    public void onServerTick(ServerTickEvent.Post event) {
-        // 事件处理
+    public void onDisable() {
+        ctx.order("config:save", "settings.json", settingsData);
+        ctx.getLogger().info("MyPlugin disabled");
     }
 }
 ```
 
 ---
 
-## 注意事项
+## 3.5 调用示例（按子系统）
 
-1. **不要缓存 PluginContext 衍生值。** `getDataFolder()` 路径理论不可变，但应以每次调用为准。
-2. **不要在构造器中调用耗时的 kernel.order()。** 构造器运行在插件加载线程上，会影响其他插件的加载。
-3. **S 级插件能力有限。** 检查 `getTrustLevel()` 做降级处理。
-4. **不要跨插件使用对方 PluginContext。** 每个插件只应使用被注入到自己的那个实例。
+### resource: 文件操作
+
+```java
+// ✅ 安全：沙箱自动限制到插件目录
+ctx.order("resource:file", "/config/server.json");
+// → config/DLZstudio/ZCSLIB/plugins/myplugin/config/server.json
+
+// ❌ 被拒绝：路径逃逸
+ctx.order("resource:file", "../../../saves/world/player.dat");
+// → OrderResult.fail("PATH_ESCAPE")
+```
+
+### scheduler: 调度
+
+```java
+// 异步计算（N/R/A 级可用，S 级禁止）
+ctx.order("scheduler:compute", () -> heavyCalculation());
+
+// 批量同步（所有等级可用）
+ctx.order("scheduler:sync", () -> updateRenderState());
+```
+
+S 级插件调用 `scheduler:compute` 会收到 `OrderResult.fail("FORBIDDEN:S")`。
+
+### config: 配置
+
+```java
+ctx.order("config:save", "server.json", Map.of("port", 8080));
+Map cfg = (Map) ctx.order("config:load", "server.json").getData();
+```
+
+### pdc: 持久化
+
+```java
+ctx.order("pdc:save", "player_homes", homeData);
+HomeData loaded = (HomeData) ctx.order("pdc:load", "player_homes").getData();
+```
+
+### service: 服务注册
+
+```java
+// N/R/A 级：注册任意服务
+ctx.order("service:register", IEMSService.class, new IEMSServiceImpl());
+
+// N/R/A 级：获取服务（含元数据）
+OrderResult r = ctx.order("service:get:meta", IEMSService.class);
+ServiceWrapper<IEMSService> w = (ServiceWrapper<IEMSService>) r.getData();
+
+// S 级：禁止注册核心命名空间服务
+// ctx.order("service:register", PlayerDataService.class, impl);
+// → OrderResult.fail("FORBIDDEN:S")
+```
+
+### event: 事件
+
+```java
+// 注册监听器
+ctx.order("event:register", new Object() {
+    @Subscribe(priority = EventPriority.HIGH)
+    void onEnergyUpdate(EnergyUpdateEvent e) {
+        if (e.isCancelable() && e.isCancelled()) return;
+        handleEnergy(e.getAmount());
+    }
+});
+
+// 发布事件
+ctx.order("event:post", new EnergyUpdateEvent(500));
+
+// S 级：禁止发布非系统事件
+// suspiciousCtx.order("event:post", customEvent);
+// → OrderResult.fail("FORBIDDEN:S")
+```
+
+### network: 网络
+
+```java
+// 标准 HTTP 发送（所有等级可用，S 级会审计）
+ctx.order("network:send:standard", "GET", "/api/status", null);
+
+// 主包发送（S 级禁止）
+ctx.order("network:send:main", energyData);
+
+// 离线重试
+ctx.order("network:offline", "RETRY_LATER");
+```
+
+---
+
+## 3.6 注意事项
+
+1. **线程安全**：除 `scheduler:compute` 外，所有 `order()` 调用建议在主线程执行
+2. **空值处理**：`service:get` 未找到时返回 `OrderResult` 的 `getData()` 为 `null`
+3. **信任降级**：S 级插件调用受限指令不会抛异常，而是返回 `OrderResult.fail("FORBIDDEN:S")`
+4. **路径隔离**：所有文件操作自动沙箱化，无法访问插件目录外的路径
+5. **审计追踪**：`ctx.order()` 自动记录 L1（调用链快照）和 L2（事件日志），为零性能开销

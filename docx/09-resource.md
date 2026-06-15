@@ -13,10 +13,17 @@ config/DLZstudio/ZCSLIB/
 ├── shared_res/                  # 共享只读资源
 ├── cache/                       # 全局缓存
 │   └── {pluginId}/              # 每插件子目录
+├── memory/                      # 🆕 全局记忆（L1/L4/训练集）
+│   ├── l1/                      # L1 崩溃快照
+│   ├── l4/                      # L4 本能模式库
+│   └── training/                # 联邦训练集
 ├── plugins/
 │   └── {pluginId}/
 │       ├── config/              # 配置目录
-│       └── data/                # 数据目录
+│       ├── data/                # 数据目录
+│       └── memory/              # 🆕 插件私有记忆
+│           ├── l2/              # L2 短期日志
+│           └── l3/              # L3 长期作战手册
 ```
 
 ---
@@ -36,7 +43,7 @@ ctx.getCacheDir()      // → cache/{id}/
 每条 `resource:file` 调用都经过沙箱验证：
 
 ```java
-OrderResult r = ctx.kernel().order("resource:file", ctx.getPluginId(), "data/saves/world.dat");
+OrderResult r = ctx.order("resource:file", ctx.getPluginId(), "data/saves/world.dat");
 // OK: → plugins/my-plugin/data/saves/world.dat
 ```
 
@@ -111,7 +118,7 @@ File myFile = new File(dataDir, "cache.bin");
 ### 方式二：kernel.order("resource:file")
 
 ```java
-OrderResult r = ctx.kernel().order("resource:file", ctx.getPluginId(), "data/cache.bin");
+OrderResult r = ctx.order("resource:file", ctx.getPluginId(), "data/cache.bin");
 File myFile = (File) r.getData();
 // 经过沙箱验证 — 双重确认
 ```
@@ -122,12 +129,13 @@ File myFile = (File) r.getData();
 
 ## 当前与未来
 
-| 功能 | v0.2.0 状态 |
+| 功能 | v0.2.0-M5 状态 |
 |:---|:---|
 | 插件自身数据目录 | ✅ 自动创建 |
+| 插件私有记忆 (L2/L3) | ✅ `plugins/{id}/memory/` |
 | 路径穿越拦截 | ✅ SecurityException |
 | 敏感文件黑名单 | ✅ 9 个系统路径 |
 | 磁盘配额检查 | ✅ 可查询 |
-| shared_res 共享资源 | ⚠️ 目录已创建，order() 未接线 |
-| global 内核数据 | ⚠️ 目录已创建，order() 未接线 |
-| resource:exists | ⏳ order.md 定义，未实现 |
+| 全局记忆目录 (L1/L4) | ✅ `memory/l1/` `memory/l4/` |
+| 联邦训练集目录 | ✅ `memory/training/` |
+| shared_res 共享资源 | ✅ 目录已创建 |

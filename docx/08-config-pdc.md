@@ -14,7 +14,7 @@ ZCSLIB 提供两种持久化方案：
 ### 加载配置
 
 ```java
-OrderResult r = ctx.kernel().order("config:load", ctx.getPluginId(), "settings.json");
+OrderResult r = ctx.order("config:load", ctx.getPluginId(), "settings.json");
 if (r.isOk() && r.getData() != null) {
     @SuppressWarnings("unchecked")
     Map<String, Object> config = (Map<String, Object>) r.getData();
@@ -41,7 +41,7 @@ Map<String, Object> config = Map.of(
     "nodes", List.of("node-1", "node-2")
 );
 
-ctx.kernel().order("config:save", ctx.getPluginId(), "settings.json", config);
+ctx.order("config:save", ctx.getPluginId(), "settings.json", config);
 ```
 
 **原子写入流程：**
@@ -53,7 +53,7 @@ ctx.kernel().order("config:save", ctx.getPluginId(), "settings.json", config);
 ### 热重载
 
 ```java
-ctx.kernel().order("config:reload", ctx.getPluginId(), "settings.json");
+ctx.order("config:reload", ctx.getPluginId(), "settings.json");
 ```
 
 强制从磁盘重新读取，不使用任何缓存。
@@ -96,7 +96,7 @@ position.putInt("y", 64);
 position.putInt("z", -200);
 tag.put("spawn_point", position);
 
-ctx.kernel().order("pdc:save", ctx.getPluginId(), "player_data", tag);
+ctx.order("pdc:save", ctx.getPluginId(), "player_data", tag);
 ```
 
 文件路径：`config/DLZstudio/ZCSLIB/plugins/{pluginId}/data/player_data.dat`
@@ -106,7 +106,7 @@ ctx.kernel().order("pdc:save", ctx.getPluginId(), "player_data", tag);
 ### 读取数据
 
 ```java
-OrderResult r = ctx.kernel().order("pdc:load", ctx.getPluginId(), "player_data");
+OrderResult r = ctx.order("pdc:load", ctx.getPluginId(), "player_data");
 CompoundTag tag = (CompoundTag) r.getData();
 
 if (!tag.isEmpty()) {
@@ -122,7 +122,7 @@ if (!tag.isEmpty()) {
 ### 删除
 
 ```java
-ctx.kernel().order("pdc:delete", ctx.getPluginId(), "player_data");
+ctx.order("pdc:delete", ctx.getPluginId(), "player_data");
 ```
 
 ### Key 安全性

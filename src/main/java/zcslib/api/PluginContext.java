@@ -34,4 +34,10 @@ public interface PluginContext {
 
     /** Entry point for all functional {@code order()} commands. */
     ZCSKernel kernel();
+
+    /**
+     * Execute a command with automatic L1/L2 tracing.
+     * Preferred entry point — captures timing, plugin identity, and result.
+     */
+    OrderResult order(String command, Object... args);
 }

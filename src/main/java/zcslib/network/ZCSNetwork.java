@@ -117,8 +117,11 @@ public class ZCSNetwork {
         String body = args.length > 2 && args[2] != null ? args[2].toString() : null;
         TrustLevel trust = (args.length > 3 && args[3] instanceof TrustLevel t) ? t : TrustLevel.N;
 
-        OrderResult gate = trustGate(trust, "send:standard");
-        if (gate == null) gate = trustGate(trust, "send:standard"); // S passes but audited below
+        // S-level: allowed to send standard but must be audited
+        if (trust == TrustLevel.S) {
+            kernel.getAuditLogger().logTrusted("network", "send:standard",
+                    "S-level plugin attempting network send", trust, TrustLevel.N);
+        }
 
         try {
             HttpRequest.Builder rb = HttpRequest.newBuilder()
@@ -135,12 +138,6 @@ public class ZCSNetwork {
             }
 
             HttpResponse<String> resp = httpClient.send(rb.build(), HttpResponse.BodyHandlers.ofString());
-
-            if (trust == TrustLevel.S) {
-                AuditLogger.log(TrustLevel.S, "kernel", "send:standard",
-                        method + " " + path + " → " + resp.statusCode());
-            }
-
             return OrderResult.success(resp.body());
         } catch (Exception e) {
             LOG.error("Standard send failed: {} {} — {}", method, path, e.getMessage());

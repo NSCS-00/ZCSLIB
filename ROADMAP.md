@@ -1,140 +1,107 @@
-# ZCSLIB 实现路径 v0.1.0
+# ZCSLIB 瀹炵幇璺緞 v0.1.0
 
-## 总原则
-
-1. **坚壳软芯。** 每个 Phase 结束时产物可编译、可启动、可通过 NeoForge 加载。
-2. **向下不依赖。** 严禁后一 Phase 完成后回头改前一 Phase 的公开接口。
-3. **S 级先行。** 每实现一个子系统，立即补齐信任分级拦截逻辑，不拖到后期补。
-4. **order() 驱动。** 所有功能入口通过 `kernel.order()` 暴露，内部子系统不直接对插件公开。
-
+## 鎬诲師鍒?
+1. **鍧氬３杞姱銆?* 姣忎釜 Phase 缁撴潫鏃朵骇鐗╁彲缂栬瘧銆佸彲鍚姩銆佸彲閫氳繃 NeoForge 鍔犺浇銆?2. **鍚戜笅涓嶄緷璧栥€?* 涓ョ鍚庝竴 Phase 瀹屾垚鍚庡洖澶存敼鍓嶄竴 Phase 鐨勫叕寮€鎺ュ彛銆?3. **S 绾у厛琛屻€?* 姣忓疄鐜颁竴涓瓙绯荤粺锛岀珛鍗宠ˉ榻愪俊浠诲垎绾ф嫤鎴€昏緫锛屼笉鎷栧埌鍚庢湡琛ャ€?4. **order() 椹卞姩銆?* 鎵€鏈夊姛鑳藉叆鍙ｉ€氳繃 `kernel.order()` 鏆撮湶锛屽唴閮ㄥ瓙绯荤粺涓嶇洿鎺ュ鎻掍欢鍏紑銆?
 ---
 
-## 依赖拓扑
+## 渚濊禆鎷撴墤
 
 ```
-Phase 1  内核骨架
-   │
-Phase 2  PluginContext + Logger
-   │
-   ├── Phase 3  PEC 解析 + 插件加载器
-   │      │
-   │      ├── Phase 4  资源管理器
-   │      │      │
-   │      │      └── Phase 6  配置 + PDC 持久化
-   │      │
-   │      ├── Phase 7  服务注册表
-   │      │
-   │      └── Phase 8  事件总线
-   │
-   ├── Phase 5  异步调度器
-   │
-   └── Phase 9  网络抽象层
-          │
-          └── Phase 10  审计 + 崩溃日志
-                    │
-                    └── Phase 11  Daemon 守护进程
-                           │
-                           └── Phase 12  自适应演化
+Phase 1  鍐呮牳楠ㄦ灦
+   鈹?Phase 2  PluginContext + Logger
+   鈹?   鈹溾攢鈹€ Phase 3  PEC 瑙ｆ瀽 + 鎻掍欢鍔犺浇鍣?   鈹?     鈹?   鈹?     鈹溾攢鈹€ Phase 4  璧勬簮绠＄悊鍣?   鈹?     鈹?     鈹?   鈹?     鈹?     鈹斺攢鈹€ Phase 6  閰嶇疆 + PDC 鎸佷箙鍖?   鈹?     鈹?   鈹?     鈹溾攢鈹€ Phase 7  鏈嶅姟娉ㄥ唽琛?   鈹?     鈹?   鈹?     鈹斺攢鈹€ Phase 8  浜嬩欢鎬荤嚎
+   鈹?   鈹溾攢鈹€ Phase 5  寮傛璋冨害鍣?   鈹?   鈹斺攢鈹€ Phase 9  缃戠粶鎶借薄灞?          鈹?          鈹斺攢鈹€ Phase 10  瀹¤ + 宕╂簝鏃ュ織
+                 鈹?                 鈹斺攢鈹€ Phase 11  Daemon + 鑷紨鍖栧寘
+                        鈹?   (鍙?Main-Class锛屽唴缃?ZCSLIB.jar)
+                        鈹?   (鏂囦欢浜や簰锛屾棤 IPC)
+                        鈹?                        鈹斺攢鈹€ Phase 12  璁ょ煡涓庤嚜婕斿寲浣撶郴
+                             鈹溾攢鈹€ L1-L4 鍥涢樁璁板繂
+                             鈹溾攢鈹€ 姊︽搸锛堢敱 Daemon 椹卞姩锛?                             鈹溾攢鈹€ 鍙傛暟浣撶郴 + 濂栨儵
+                             鈹斺攢鈹€ 鍘嬬缉浣撶郴锛? 褰㈡€侊級
 ```
 
 ---
 
-## Phase 1 — 内核骨架（预计 1 个 BUILD）
-
-**目标：** 模组可被 NeoForge 加载，输出一行日志证明存在。
-
-### 产出文件
+## Phase 1 鈥?鍐呮牳楠ㄦ灦锛堥璁?1 涓?BUILD锛?
+**鐩爣锛?* 妯＄粍鍙 NeoForge 鍔犺浇锛岃緭鍑轰竴琛屾棩蹇楄瘉鏄庡瓨鍦ㄣ€?
+### 浜у嚭鏂囦欢
 
 ```
 src/main/java/com/dlzstudio/zcslib/
-├── ZCSLIB.java              # @Mod 主类，NeoForge 入口
-└── kernel/
-    └── ZCSKernel.java       # 空壳内核，暂只输出启动日志
-
+鈹溾攢鈹€ ZCSLIB.java              # @Mod 涓荤被锛孨eoForge 鍏ュ彛
+鈹斺攢鈹€ kernel/
+    鈹斺攢鈹€ ZCSKernel.java       # 绌哄３鍐呮牳锛屾殏鍙緭鍑哄惎鍔ㄦ棩蹇?
 src/main/resources/
-└── META-INF/
-    └── neoforge.mods.toml   # 模组元数据
-```
+鈹斺攢鈹€ META-INF/
+    鈹斺攢鈹€ neoforge.mods.toml   # 妯＄粍鍏冩暟鎹?```
 
-### 验证标准
+### 楠岃瘉鏍囧噯
 
 ```
 [INFO] [ZCSLIB] [N/zcslib] [Main]: ZCSLIB Kernel v0.1.0 initialized.
 ```
 
-### 不做的
-
-- 不读任何配置
-- 不加载任何插件
-- 不接受任何 order()
+### 涓嶅仛鐨?
+- 涓嶈浠讳綍閰嶇疆
+- 涓嶅姞杞戒换浣曟彃浠?- 涓嶆帴鍙椾换浣?order()
 
 ---
 
-## Phase 2 — PluginContext + Logger（预计 1-2 个 BUILD）
-
-**目标：** 日志系统跑通，PluginContext 接口定型。
-
-### 产出
+## Phase 2 鈥?PluginContext + Logger锛堥璁?1-2 涓?BUILD锛?
+**鐩爣锛?* 鏃ュ織绯荤粺璺戦€氾紝PluginContext 鎺ュ彛瀹氬瀷銆?
+### 浜у嚭
 
 ```
 src/main/java/com/dlzstudio/zcslib/
-├── api/
-│   ├── PluginContext.java       # 7 方法接口
-│   ├── TrustLevel.java          # N / R / A / S 枚举
-│   └── OrderResult.java         # ok + error + data
-├── log/
-│   └── ZCSLogger.java           # 双轨制：[ZCSLIB] 前缀 + 独立文件
-└── kernel/
-    └── ZCSKernel.java           # 新增 order() 空壳方法体 + dispatch 路由骨架
+鈹溾攢鈹€ api/
+鈹?  鈹溾攢鈹€ PluginContext.java       # 7 鏂规硶鎺ュ彛
+鈹?  鈹溾攢鈹€ TrustLevel.java          # N / R / A / S 鏋氫妇
+鈹?  鈹斺攢鈹€ OrderResult.java         # ok + error + data
+鈹溾攢鈹€ log/
+鈹?  鈹斺攢鈹€ ZCSLogger.java           # 鍙岃建鍒讹細[ZCSLIB] 鍓嶇紑 + 鐙珛鏂囦欢
+鈹斺攢鈹€ kernel/
+    鈹斺攢鈹€ ZCSKernel.java           # 鏂板 order() 绌哄３鏂规硶浣?+ dispatch 璺敱楠ㄦ灦
 ```
 
-### 关键决策
+### 鍏抽敭鍐崇瓥
 
-- **ZCSLogger** 构造函数签名为 `ZCSLogger(String pluginId, TrustLevel level, Path logDir)`
-- 双轨输出在构造时决定，不在每次调用时判断
-- 格式锁定：`[{TIME}] [{LEVEL}] [{TRUST}/{PLUGIN_ID}] [{THREAD}]: {MESSAGE}`
+- **ZCSLogger** 鏋勯€犲嚱鏁扮鍚嶄负 `ZCSLogger(String pluginId, TrustLevel level, Path logDir)`
+- 鍙岃建杈撳嚭鍦ㄦ瀯閫犳椂鍐冲畾锛屼笉鍦ㄦ瘡娆¤皟鐢ㄦ椂鍒ゆ柇
+- 鏍煎紡閿佸畾锛歚[{TIME}] [{LEVEL}] [{TRUST}/{PLUGIN_ID}] [{THREAD}]: {MESSAGE}`
 
-### 验证标准
+### 楠岃瘉鏍囧噯
 
 ```java
-// 硬编码测试（Phase 3 之前手动构造 PluginContext）
-ZCSLogger log = new ZCSLogger("test", TrustLevel.N, Path.of("logs/zcslib"));
+// 纭紪鐮佹祴璇曪紙Phase 3 涔嬪墠鎵嬪姩鏋勯€?PluginContext锛?ZCSLogger log = new ZCSLogger("test", TrustLevel.N, Path.of("logs/zcslib"));
 log.info("Logger online");
-// →
-// [2026-06-13 16:00:00.000] [INFO] [N/test] [Main]: Logger online
-// 同时写入 logs/zcslib/test.log
+// 鈫?// [2026-06-13 16:00:00.000] [INFO] [N/test] [Main]: Logger online
+// 鍚屾椂鍐欏叆 logs/zcslib/test.log
 ```
 
 ---
 
-## Phase 3 — PEC 解析 + 插件加载器（预计 2-3 个 BUILD）
-
-**目标：** 从 `plugins/` 目录发现并加载 Native Plugin。
-
-### 产出
+## Phase 3 鈥?PEC 瑙ｆ瀽 + 鎻掍欢鍔犺浇鍣紙棰勮 2-3 涓?BUILD锛?
+**鐩爣锛?* 浠?`plugins/` 鐩綍鍙戠幇骞跺姞杞?Native Plugin銆?
+### 浜у嚭
 
 ```
 src/main/java/com/dlzstudio/zcslib/
-├── pec/
-│   ├── PECScanner.java          # 4 路径优先级扫描（/META-INF/zcslib/PEC.json → /PEC.json）
-│   ├── PECSchema.java           # PEC JSON → Java 对象映射
-│   └── PECValidator.java        # 环境校验 → PASS / SOFT_FAIL / HARD_FAIL
-├── loader/
-│   ├── PluginClassLoader.java   # 隔离 ClassLoader（禁止访问内核私有包）
-│   ├── PluginDescriptor.java    # 插件元数据（id/version/trust/classloader/pec）
-│   └── PluginLoader.java        # 扫描 → 分类 → 加载 → 注入 PluginContext
-└── kernel/
-    └── ZCSKernel.java           # 整合：启动时 PluginLoader.scan() → 日志输出加载结果
+鈹溾攢鈹€ pec/
+鈹?  鈹溾攢鈹€ PECScanner.java          # 4 璺緞浼樺厛绾ф壂鎻忥紙/META-INF/zcslib/PEC.json 鈫?/PEC.json锛?鈹?  鈹溾攢鈹€ PECSchema.java           # PEC JSON 鈫?Java 瀵硅薄鏄犲皠
+鈹?  鈹斺攢鈹€ PECValidator.java        # 鐜鏍￠獙 鈫?PASS / SOFT_FAIL / HARD_FAIL
+鈹溾攢鈹€ loader/
+鈹?  鈹溾攢鈹€ PluginClassLoader.java   # 闅旂 ClassLoader锛堢姝㈣闂唴鏍哥鏈夊寘锛?鈹?  鈹溾攢鈹€ PluginDescriptor.java    # 鎻掍欢鍏冩暟鎹紙id/version/trust/classloader/pec锛?鈹?  鈹斺攢鈹€ PluginLoader.java        # 鎵弿 鈫?鍒嗙被 鈫?鍔犺浇 鈫?娉ㄥ叆 PluginContext
+鈹斺攢鈹€ kernel/
+    鈹斺攢鈹€ ZCSKernel.java           # 鏁村悎锛氬惎鍔ㄦ椂 PluginLoader.scan() 鈫?鏃ュ織杈撳嚭鍔犺浇缁撴灉
 ```
 
-### 关键决策
+### 鍏抽敭鍐崇瓥
 
-- **PECScanner 命中即止**：按白皮书 4 个路径顺序扫描，找到第一个就停
-- **PluginClassLoader 黑名单**：禁止访问 `com.dlzstudio.zcslib.kernel.internal.*`
-- **虚拟 PEC 生成**：R/A/S 级无 PEC 的组件，内核自动生成虚拟 PEC
-- **加载顺序**：按 PEC 中 `priority` 字段升序加载（-100 最先，100 最后）
+- **PECScanner 鍛戒腑鍗虫**锛氭寜鐧界毊涔?4 涓矾寰勯『搴忔壂鎻忥紝鎵惧埌绗竴涓氨鍋?- **PluginClassLoader 榛戝悕鍗?*锛氱姝㈣闂?`com.dlzstudio.zcslib.kernel.internal.*`
+- **铏氭嫙 PEC 鐢熸垚**锛歊/A/S 绾ф棤 PEC 鐨勭粍浠讹紝鍐呮牳鑷姩鐢熸垚铏氭嫙 PEC
+- **鍔犺浇椤哄簭**锛氭寜 PEC 涓?`priority` 瀛楁鍗囧簭鍔犺浇锛?100 鏈€鍏堬紝100 鏈€鍚庯級
 
-### 验证标准
+### 楠岃瘉鏍囧噯
 
 ```
 [INFO] [ZCSLIB] [N/zcslib] [Main]: Scanning plugins/ ...
@@ -143,410 +110,420 @@ src/main/java/com/dlzstudio/zcslib/
 [INFO] [ZCSLIB] [N/zcslib] [Main]: [R/external-mod] Loaded (Virtual PEC)
 ```
 
-### 不做的
-
-- 不实现 Standalone Mod 的虚拟 PEC（那是 Phase 7-8 后的扩展）
-- 不实现 Auto-Adapt 标记扫描
+### 涓嶅仛鐨?
+- 涓嶅疄鐜?Standalone Mod 鐨勮櫄鎷?PEC锛堥偅鏄?Phase 7-8 鍚庣殑鎵╁睍锛?- 涓嶅疄鐜?Auto-Adapt 鏍囪鎵弿
 
 ---
 
-## Phase 4 — 资源管理器（预计 2-3 个 BUILD）
-
-**目标：** 目录结构创建 + 沙箱路径映射 + 磁盘配额。
-
-### 产出
+## Phase 4 鈥?璧勬簮绠＄悊鍣紙棰勮 2-3 涓?BUILD锛?
+**鐩爣锛?* 鐩綍缁撴瀯鍒涘缓 + 娌欑璺緞鏄犲皠 + 纾佺洏閰嶉銆?
+### 浜у嚭
 
 ```
 src/main/java/com/dlzstudio/zcslib/
-└── resource/
-    ├── ZCSResourceManager.java  # 虚拟路径 → 物理路径映射
-    ├── ResourceSandbox.java     # 路径规范化 + .. 阻断 + 敏感目录拒止
-    └── DiskQuota.java           # S 级 500MB / 其他 2GB 配额检查
-```
+鈹斺攢鈹€ resource/
+    鈹溾攢鈹€ ZCSResourceManager.java  # 铏氭嫙璺緞 鈫?鐗╃悊璺緞鏄犲皠
+    鈹溾攢鈹€ ResourceSandbox.java     # 璺緞瑙勮寖鍖?+ .. 闃绘柇 + 鏁忔劅鐩綍鎷掓
+    鈹斺攢鈹€ DiskQuota.java           # S 绾?500MB / 鍏朵粬 2GB 閰嶉妫€鏌?```
 
-### 关键决策
+### 鍏抽敭鍐崇瓥
 
-- **根目录锁定**：所有路径强制解析到 `./config/DLZstudio/ZCSLIB/plugins/{id}/`
-- **S 级逃逸检测**：`new File("../..")` → `ResourceSandbox.canonicalize()` 抛安全异常
-- **配额实现**：`java.nio.file.FileStore.getUsableSpace()` 检查分区剩余，非精确字节计数（性能优先）
-
-### 目录结构（自动创建）
+- **鏍圭洰褰曢攣瀹?*锛氭墍鏈夎矾寰勫己鍒惰В鏋愬埌 `./config/DLZstudio/ZCSLIB/plugins/{id}/`
+- **S 绾ч€冮€告娴?*锛歚new File("../..")` 鈫?`ResourceSandbox.canonicalize()` 鎶涘畨鍏ㄥ紓甯?- **閰嶉瀹炵幇**锛歚java.nio.file.FileStore.getUsableSpace()` 妫€鏌ュ垎鍖哄墿浣欙紝闈炵簿纭瓧鑺傝鏁帮紙鎬ц兘浼樺厛锛?
+### 鐩綍缁撴瀯锛堣嚜鍔ㄥ垱寤猴級
 
 ```
 config/DLZstudio/ZCSLIB/
-├── global/           # 内核全局（PDC 后端）
-├── shared_res/       # 共享资源（只读）
-├── cache/            # 全局缓存
-└── plugins/
-    └── {plugin_id}/
-        ├── config/
-        └── data/
+鈹溾攢鈹€ global/           # 鍐呮牳鍏ㄥ眬锛圥DC 鍚庣锛?鈹溾攢鈹€ shared_res/       # 鍏变韩璧勬簮锛堝彧璇伙級
+鈹溾攢鈹€ cache/            # 鍏ㄥ眬缂撳瓨
+鈹斺攢鈹€ plugins/
+    鈹斺攢鈹€ {plugin_id}/
+        鈹溾攢鈹€ config/
+        鈹斺攢鈹€ data/
 ```
 
-### 验证标准
+### 楠岃瘉鏍囧噯
 
 ```java
-ctx.kernel().order("resource:file", "/config/server.json");
-// → 返回 File("config/DLZstudio/ZCSLIB/plugins/test/config/server.json")
+ctx.order("resource:file", "/config/server.json");
+// 鈫?杩斿洖 File("config/DLZstudio/ZCSLIB/plugins/test/config/server.json")
 
-// S 级逃逸测试
-ctx.kernel().order("resource:file", "../../../saves/world/player.dat");
-// → OrderResult.error = "SANDBOX: Path escape denied"
+// S 绾ч€冮€告祴璇?ctx.order("resource:file", "../../../saves/world/player.dat");
+// 鈫?OrderResult.error = "SANDBOX: Path escape denied"
 ```
 
 ---
 
-## Phase 5 — 异步调度器（预计 2-3 个 BUILD）
-
-**目标：** L0-L3 线程模型 + 舱壁隔离 + 批量同步队列。
-
-### 产出
+## Phase 5 鈥?寮傛璋冨害鍣紙棰勮 2-3 涓?BUILD锛?
+**鐩爣锛?* L0-L3 绾跨▼妯″瀷 + 鑸卞闅旂 + 鎵归噺鍚屾闃熷垪銆?
+### 浜у嚭
 
 ```
 src/main/java/com/dlzstudio/zcslib/
-└── scheduler/
-    ├── ZCSScheduler.java        # order() 路由到的调度实现
-    ├── ComputePool.java         # L3 计算线程池（FixedThreadPool, per-plugin 队列）
-    ├── SyncQueue.java           # 批量同步队列（tick 末合并执行）
-    └── Bulkhead.java            # 舱壁：每插件独立有界队列 + 超时熔断
+鈹斺攢鈹€ scheduler/
+    鈹溾攢鈹€ ZCSScheduler.java        # order() 璺敱鍒扮殑璋冨害瀹炵幇
+    鈹溾攢鈹€ ComputePool.java         # L3 璁＄畻绾跨▼姹狅紙FixedThreadPool, per-plugin 闃熷垪锛?    鈹溾攢鈹€ SyncQueue.java           # 鎵归噺鍚屾闃熷垪锛坱ick 鏈悎骞舵墽琛岋級
+    鈹斺攢鈹€ Bulkhead.java            # 鑸卞锛氭瘡鎻掍欢鐙珛鏈夌晫闃熷垪 + 瓒呮椂鐔旀柇
 ```
 
-### 关键决策
+### 鍏抽敭鍐崇瓥
 
-- **ComputePool 线程数**：`CPU 核心数 × 2`，每插件最大占用 `min(核心数, 4)` 线程
-- **SyncQueue 合并**：同一 tick 内同一插件的多次 queueSync → 合并为一次执行
-- **熔断阈值**：插件单次 compute 超 50ms → WARN；连续 3 次 → 熔断该插件 L3 权限 30 秒
-- **S 级拦截**：`scheduler:compute` → 直接返回 `"FORBIDDEN:S"`
+- **ComputePool 绾跨▼鏁?*锛歚CPU 鏍稿績鏁?脳 2`锛屾瘡鎻掍欢鏈€澶у崰鐢?`min(鏍稿績鏁? 4)` 绾跨▼
+- **SyncQueue 鍚堝苟**锛氬悓涓€ tick 鍐呭悓涓€鎻掍欢鐨勫娆?queueSync 鈫?鍚堝苟涓轰竴娆℃墽琛?- **鐔旀柇闃堝€?*锛氭彃浠跺崟娆?compute 瓒?50ms 鈫?WARN锛涜繛缁?3 娆?鈫?鐔旀柇璇ユ彃浠?L3 鏉冮檺 30 绉?- **S 绾ф嫤鎴?*锛歚scheduler:compute` 鈫?鐩存帴杩斿洖 `"FORBIDDEN:S"`
 
-### 验证标准
+### 楠岃瘉鏍囧噯
 
 ```java
-// 插件 A 正常调度
-ctx.kernel().order("scheduler:compute", () -> heavyCalculation());
-// → 日志: [ZCSLIB] [N/plugin_a] [L3-Compute-1]: Task started
-// → 日志: [ZCSLIB] [N/plugin_a] [L3-Compute-1]: Task completed (42ms)
+// 鎻掍欢 A 姝ｅ父璋冨害
+ctx.order("scheduler:compute", () -> heavyCalculation());
+// 鈫?鏃ュ織: [ZCSLIB] [N/plugin_a] [L3-Compute-1]: Task started
+// 鈫?鏃ュ織: [ZCSLIB] [N/plugin_a] [L3-Compute-1]: Task completed (42ms)
 
-// S 级被拒
-suspiciousCtx.kernel().order("scheduler:compute", task);
-// → OrderResult.error = "FORBIDDEN:S compute"
+// S 绾ц鎷?suspiciousctx.order("scheduler:compute", task);
+// 鈫?OrderResult.error = "FORBIDDEN:S compute"
 ```
 
 ---
 
-## Phase 6 — 配置 + PDC 持久化（预计 2 个 BUILD）
-
-**目标：** 插件可读写私有配置文件和持久化键值对。
-
-### 产出
+## Phase 6 鈥?閰嶇疆 + PDC 鎸佷箙鍖栵紙棰勮 2 涓?BUILD锛?
+**鐩爣锛?* 鎻掍欢鍙鍐欑鏈夐厤缃枃浠跺拰鎸佷箙鍖栭敭鍊煎銆?
+### 浜у嚭
 
 ```
 src/main/java/com/dlzstudio/zcslib/
-├── config/
-│   └── ConfigManager.java       # JSON/TOML 配置加载 + 热重载
-└── persistence/
-    └── PDCBackend.java          # NBT 序列化 + 磁盘读写
+鈹溾攢鈹€ config/
+鈹?  鈹斺攢鈹€ ConfigManager.java       # JSON/TOML 閰嶇疆鍔犺浇 + 鐑噸杞?鈹斺攢鈹€ persistence/
+    鈹斺攢鈹€ PDCBackend.java          # NBT 搴忓垪鍖?+ 纾佺洏璇诲啓
 ```
 
-### 关键决策
+### 鍏抽敭鍐崇瓥
 
-- **配置格式**：优先 JSON，后续支持 TOML（与白皮书 `network.toml` 一致）
-- **PDC 后端**：Minecraft `CompoundTag` → NBT 文件，自动处理 `BlockPos`、`ItemStack` 等 MC 类型
-- **原子写入**：先写 `.tmp` → `Files.move(tmp, target, ATOMIC_MOVE)`，防止崩溃损毁数据
-
-### 验证标准
+- **閰嶇疆鏍煎紡**锛氫紭鍏?JSON锛屽悗缁敮鎸?TOML锛堜笌鐧界毊涔?`network.toml` 涓€鑷达級
+- **PDC 鍚庣**锛歁inecraft `CompoundTag` 鈫?NBT 鏂囦欢锛岃嚜鍔ㄥ鐞?`BlockPos`銆乣ItemStack` 绛?MC 绫诲瀷
+- **鍘熷瓙鍐欏叆**锛氬厛鍐?`.tmp` 鈫?`Files.move(tmp, target, ATOMIC_MOVE)`锛岄槻姝㈠穿婧冩崯姣佹暟鎹?
+### 楠岃瘉鏍囧噯
 
 ```java
-// 配置
-ctx.kernel().order("config:save", "server.json", Map.of("port", 8080));
-Map cfg = (Map) ctx.kernel().order("config:load", "server.json").data;
-// → {port: 8080}
+// 閰嶇疆
+ctx.order("config:save", "server.json", Map.of("port", 8080));
+Map cfg = (Map) ctx.order("config:load", "server.json").data;
+// 鈫?{port: 8080}
 
 // PDC
-ctx.kernel().order("pdc:save", "player_homes", homeData);
-HomeData loaded = (HomeData) ctx.kernel().order("pdc:load", "player_homes").data;
+ctx.order("pdc:save", "player_homes", homeData);
+HomeData loaded = (HomeData) ctx.order("pdc:load", "player_homes").data;
 ```
 
 ---
 
-## Phase 7 — 服务注册表（预计 2 个 BUILD）
-
-**目标：** 插件间通过接口松耦合交互，信任分级拦截 + 审计。
-
-### 产出
+## Phase 7 鈥?鏈嶅姟娉ㄥ唽琛紙棰勮 2 涓?BUILD锛?
+**鐩爣锛?* 鎻掍欢闂撮€氳繃鎺ュ彛鏉捐€﹀悎浜や簰锛屼俊浠诲垎绾ф嫤鎴?+ 瀹¤銆?
+### 浜у嚭
 
 ```
 src/main/java/com/dlzstudio/zcslib/
-└── service/
-    ├── ServiceRegistry.java     # register / get / getWithMeta
-    ├── ServiceWrapper.java      # instance + providerId + providerLevel
-    └── ServiceSecurityFilter.java  # S 级注册黑名单（Kernel/Admin/PlayerData/NetworkMain）
-```
+鈹斺攢鈹€ service/
+    鈹溾攢鈹€ ServiceRegistry.java     # register / get / getWithMeta
+    鈹溾攢鈹€ ServiceWrapper.java      # instance + providerId + providerLevel
+    鈹斺攢鈹€ ServiceSecurityFilter.java  # S 绾ф敞鍐岄粦鍚嶅崟锛圞ernel/Admin/PlayerData/NetworkMain锛?```
 
-### 关键决策
+### 鍏抽敭鍐崇瓥
 
-- **注册表存储**：`ConcurrentHashMap<Class<?>, ServiceEntry>`，线程安全
-- **S 级黑名单关键词**：`Kernel`、`Admin`、`PlayerData`、`NetworkMain` — 含任一即拒
-- **跨信任调用日志**：N→S 记 WARN，S→N 记 SECURITY
+- **娉ㄥ唽琛ㄥ瓨鍌?*锛歚ConcurrentHashMap<Class<?>, ServiceEntry>`锛岀嚎绋嬪畨鍏?- **S 绾ч粦鍚嶅崟鍏抽敭璇?*锛歚Kernel`銆乣Admin`銆乣PlayerData`銆乣NetworkMain` 鈥?鍚换涓€鍗虫嫆
+- **璺ㄤ俊浠昏皟鐢ㄦ棩蹇?*锛歂鈫扴 璁?WARN锛孲鈫扤 璁?SECURITY
 
-### 验证标准
+### 楠岃瘉鏍囧噯
 
 ```java
-// N 级注册服务
-iemsCtx.kernel().order("service:register", IEMSService.class, new IEMSServiceImpl());
+// N 绾ф敞鍐屾湇鍔?iemsctx.order("service:register", IEMSService.class, new IEMSServiceImpl());
 
-// 另一个 N 级获取
-ServiceWrapper<IEMSService> w = mi2Ctx.kernel().order("service:get:meta", IEMSService.class).data;
-w.getInstance().getEnergyData();  // N→N, 正常使用
+// 鍙︿竴涓?N 绾ц幏鍙?ServiceWrapper<IEMSService> w = mi2ctx.order("service:get:meta", IEMSService.class).data;
+w.getInstance().getEnergyData();  // N鈫扤, 姝ｅ父浣跨敤
 
-// S 级尝试注册核心服务
-suspiciousCtx.kernel().order("service:register", PlayerDataService.class, impl);
-// → OrderResult.error = "FORBIDDEN:S core service 'PlayerDataService'"
+// S 绾у皾璇曟敞鍐屾牳蹇冩湇鍔?suspiciousctx.order("service:register", PlayerDataService.class, impl);
+// 鈫?OrderResult.error = "FORBIDDEN:S core service 'PlayerDataService'"
 ```
 
 ---
 
-## Phase 8 — 事件总线（预计 2-3 个 BUILD）
-
-**目标：** @Subscribe 驱动的事件系统，自动线程投递，S 级审计。
-
-### 产出
+## Phase 8 鈥?浜嬩欢鎬荤嚎锛堥璁?2-3 涓?BUILD锛?
+**鐩爣锛?* @Subscribe 椹卞姩鐨勪簨浠剁郴缁燂紝鑷姩绾跨▼鎶曢€掞紝S 绾у璁°€?
+### 浜у嚭
 
 ```
 src/main/java/com/dlzstudio/zcslib/
-└── event/
-    ├── Event.java                # 基类（cancelled + setCancelled）
-    ├── ZCSEventBus.java          # register / post / unregister
-    ├── EventDispatcher.java      # 线程检测 → 自动投递到主线程同步队列
-    ├── SystemEvent.java          # 系统事件标记接口（PluginLoadedEvent 等）
-    └── Subscribe.java            # 注解
+鈹斺攢鈹€ event/
+    鈹溾攢鈹€ Event.java                # 鍩虹被锛坈ancelled + setCancelled锛?    鈹溾攢鈹€ ZCSEventBus.java          # register / post / unregister
+    鈹溾攢鈹€ EventDispatcher.java      # 绾跨▼妫€娴?鈫?鑷姩鎶曢€掑埌涓荤嚎绋嬪悓姝ラ槦鍒?    鈹溾攢鈹€ SystemEvent.java          # 绯荤粺浜嬩欢鏍囪鎺ュ彛锛圥luginLoadedEvent 绛夛級
+    鈹斺攢鈹€ Subscribe.java            # 娉ㄨВ
 ```
 
-### 关键决策
+### 鍏抽敭鍐崇瓥
 
-- **线程安全**：L3 计算池中 post() → 自动入队 → 下一 tick 主线程执行监听器
-- **S 级系统事件拦截**：注册时检查监听器方法参数类型，`instanceof SystemEvent` → 拒绝注册
-- **S 级玩家事件审计**：`PlayerBreakBlockEvent` 等 → 自动写入 `logs/zcslib/audit/S/{id}_audit.log`
+- **绾跨▼瀹夊叏**锛歀3 璁＄畻姹犱腑 post() 鈫?鑷姩鍏ラ槦 鈫?涓嬩竴 tick 涓荤嚎绋嬫墽琛岀洃鍚櫒
+- **S 绾х郴缁熶簨浠舵嫤鎴?*锛氭敞鍐屾椂妫€鏌ョ洃鍚櫒鏂规硶鍙傛暟绫诲瀷锛宍instanceof SystemEvent` 鈫?鎷掔粷娉ㄥ唽
+- **S 绾х帺瀹朵簨浠跺璁?*锛歚PlayerBreakBlockEvent` 绛?鈫?鑷姩鍐欏叆 `logs/zcslib/audit/S/{id}_audit.log`
 
-### 验证标准
+### 楠岃瘉鏍囧噯
 
 ```java
-// 插件注册监听
-ctx.kernel().order("event:register", new Object() {
+// 鎻掍欢娉ㄥ唽鐩戝惉
+ctx.order("event:register", new Object() {
     @Subscribe void onEnergyUpdate(EnergyUpdateEvent e) {
-        // 此处永远在主线程，可安全修改世界
+        // 姝ゅ姘歌繙鍦ㄤ富绾跨▼锛屽彲瀹夊叏淇敼涓栫晫
     }
 });
 
-// L3 线程中发布
-ctx.kernel().order("scheduler:compute", () -> {
-    ctx.kernel().order("event:post", new EnergyUpdateEvent(500));
-    // 事件未立即执行，已入主线程队列
-});
+// L3 绾跨▼涓彂甯?ctx.order("scheduler:compute", () -> {
+    ctx.order("event:post", new EnergyUpdateEvent(500));
+    // 浜嬩欢鏈珛鍗虫墽琛岋紝宸插叆涓荤嚎绋嬮槦鍒?});
 
-// S 级试图监听系统事件 → 拒绝
-suspiciousCtx.kernel().order("event:register", systemEventListener);
-// → OrderResult.error = "FORBIDDEN:S SystemEvent 'PluginLoadedEvent'"
+// S 绾ц瘯鍥剧洃鍚郴缁熶簨浠?鈫?鎷掔粷
+suspiciousctx.order("event:register", systemEventListener);
+// 鈫?OrderResult.error = "FORBIDDEN:S SystemEvent 'PluginLoadedEvent'"
 ```
 
 ---
 
-## Phase 9 — 网络抽象层（预计 3-4 个 BUILD）
-
-**目标：** 统一出口管制 + 主包聚合 + 离线策略。
-
-### 产出
+## Phase 9 鈥?缃戠粶鎶借薄灞傦紙棰勮 3-4 涓?BUILD锛?
+**鐩爣锛?* 缁熶竴鍑哄彛绠″埗 + 涓诲寘鑱氬悎 + 绂荤嚎绛栫暐銆?
+### 浜у嚭
 
 ```
 src/main/java/com/dlzstudio/zcslib/
-└── network/
-    ├── ZCSNetwork.java           # sendStandard / sendMain / setOfflineStrategy
-    ├── MainPacketAssembler.java  # Tick 级缓冲 + 外壳生成 + 心跳注入
-    ├── OfflineQueue.java         # RETRY_LATER 队列 + 磁盘持久化 + 50MB 上限
-    └── AggregatorHealthCheck.java # HTTP Ping / TCP 连接检查
-```
+鈹斺攢鈹€ network/
+    鈹溾攢鈹€ ZCSNetwork.java           # sendStandard / sendMain / setOfflineStrategy
+    鈹溾攢鈹€ MainPacketAssembler.java  # Tick 绾х紦鍐?+ 澶栧３鐢熸垚 + 蹇冭烦娉ㄥ叆
+    鈹溾攢鈹€ OfflineQueue.java         # RETRY_LATER 闃熷垪 + 纾佺洏鎸佷箙鍖?+ 50MB 涓婇檺
+    鈹斺攢鈹€ AggregatorHealthCheck.java # HTTP Ping / TCP 杩炴帴妫€鏌?```
 
-### 关键决策
+### 鍏抽敭鍐崇瓥
 
-- **主包缓冲**：每 tick 结束合并所有插件的 sendMain → 一个主包发出
-- **序列号**：从 `global/network_seq.dat` 读取自增，防重放
-- **离线队列上限**：50MB 硬顶，超出 → 强制 DISCARD + ERROR 日志
-- **S 级强制 DEGRADE**：无论插件设置什么策略，S 级一律降级为标准包
-
-### 验证标准
+- **涓诲寘缂撳啿**锛氭瘡 tick 缁撴潫鍚堝苟鎵€鏈夋彃浠剁殑 sendMain 鈫?涓€涓富鍖呭彂鍑?- **搴忓垪鍙?*锛氫粠 `global/network_seq.dat` 璇诲彇鑷锛岄槻閲嶆斁
+- **绂荤嚎闃熷垪涓婇檺**锛?0MB 纭《锛岃秴鍑?鈫?寮哄埗 DISCARD + ERROR 鏃ュ織
+- **S 绾у己鍒?DEGRADE**锛氭棤璁烘彃浠惰缃粈涔堢瓥鐣ワ紝S 绾т竴寰嬮檷绾т负鏍囧噯鍖?
+### 楠岃瘉鏍囧噯
 
 ```java
-// N 级正常使用主包
-ctx.kernel().order("network:offline", OfflineStrategy.RETRY_LATER);
-ctx.kernel().order("network:send:main", energyData);
-// → 内核组装主包，聚合器在线则立即发送
+// N 绾ф甯镐娇鐢ㄤ富鍖?ctx.order("network:offline", OfflineStrategy.RETRY_LATER);
+ctx.order("network:send:main", energyData);
+// 鈫?鍐呮牳缁勮涓诲寘锛岃仛鍚堝櫒鍦ㄧ嚎鍒欑珛鍗冲彂閫?
+// 鑱氬悎鍣ㄧ绾?+ RETRY_LATER
+// 鈫?鏁版嵁瀛樺叆 plugins/iems/data/offline_queue/1718313600.bin
+// 鈫?30 绉掑悗閲嶈瘯杩炴帴锛岃繛鎺ユ垚鍔熷垯閲嶆斁闃熷垪
 
-// 聚合器离线 + RETRY_LATER
-// → 数据存入 plugins/iems/data/offline_queue/1718313600.bin
-// → 30 秒后重试连接，连接成功则重放队列
+// S 绾?sendMain 鈫?鎷︽埅
+suspiciousctx.order("network:send:main", data);
+// 鈫?OrderResult.error = "FORBIDDEN:S main packet"
 
-// S 级 sendMain → 拦截
-suspiciousCtx.kernel().order("network:send:main", data);
-// → OrderResult.error = "FORBIDDEN:S main packet"
-
-// S 级 sendStandard → 允许但审计
-// → 写入 logs/zcslib/audit/S/suspicious_network.log
+// S 绾?sendStandard 鈫?鍏佽浣嗗璁?// 鈫?鍐欏叆 logs/zcslib/audit/S/suspicious_network.log
 ```
 
 ---
 
-## Phase 10 — 审计 + 崩溃日志（预计 1-2 个 BUILD）
-
-**目标：** 分级审计存储 + 崩溃隔离 + 日志滚动。
-
-### 产出
+## Phase 10 鈥?瀹¤ + 宕╂簝鏃ュ織锛堥璁?1-2 涓?BUILD锛?
+**鐩爣锛?* 鍒嗙骇瀹¤瀛樺偍 + 宕╂簝闅旂 + 鏃ュ織婊氬姩銆?
+### 浜у嚭
 
 ```
 src/main/java/com/dlzstudio/zcslib/
-└── log/
-    ├── AuditLogger.java          # 按信任等级分目录写入
-    ├── CrashHandler.java         # 全局异常捕获 → 内核/插件分离
-    └── LogRotator.java           # 策略：Audit 7天 / Kernel Crash 永久 / Plugin Crash 5次
-```
+鈹斺攢鈹€ log/
+    鈹溾攢鈹€ AuditLogger.java          # 鎸変俊浠荤瓑绾у垎鐩綍鍐欏叆
+    鈹溾攢鈹€ CrashHandler.java         # 鍏ㄥ眬寮傚父鎹曡幏 鈫?鍐呮牳/鎻掍欢鍒嗙
+    鈹斺攢鈹€ LogRotator.java           # 绛栫暐锛欰udit 7澶?/ Kernel Crash 姘镐箙 / Plugin Crash 5娆?```
 
-### 目录结构
+### 鐩綍缁撴瀯
 
 ```
 logs/zcslib/
-├── audit/
-│   ├── N/{plugin_id}_{date}.log
-│   ├── R/{plugin_id}_{date}.log
-│   ├── A/{plugin_id}_{date}.log
-│   └── S/{plugin_id}_{date}.log
-└── crash/
-    ├── kernel_{timestamp}.log         # 内核崩溃（永久保留）
-    └── plugins/
-        ├── iems/
-        │   └── crash_{timestamp}.log  # 最多保留 5 个
-        └── mi2/
-            └── crash_{timestamp}.log
+鈹溾攢鈹€ audit/
+鈹?  鈹溾攢鈹€ N/{plugin_id}_{date}.log
+鈹?  鈹溾攢鈹€ R/{plugin_id}_{date}.log
+鈹?  鈹溾攢鈹€ A/{plugin_id}_{date}.log
+鈹?  鈹斺攢鈹€ S/{plugin_id}_{date}.log
+鈹斺攢鈹€ crash/
+    鈹溾攢鈹€ kernel_{timestamp}.log         # 鍐呮牳宕╂簝锛堟案涔呬繚鐣欙級
+    鈹斺攢鈹€ plugins/
+        鈹溾攢鈹€ iems/
+        鈹?  鈹斺攢鈹€ crash_{timestamp}.log  # 鏈€澶氫繚鐣?5 涓?        鈹斺攢鈹€ mi2/
+            鈹斺攢鈹€ crash_{timestamp}.log
 ```
 
-### 验证标准
+### 楠岃瘉鏍囧噯
 
 ```java
-// S 级插件触发玩家事件 → 自动审计
+// S 绾ф彃浠惰Е鍙戠帺瀹朵簨浠?鈫?鑷姩瀹¤
 // logs/zcslib/audit/S/old_mod_2026-06-13_163000.log:
 // [2026-06-13 16:30:00.123] [AUDIT] [S/old_mod] PlayerBreakBlockEvent by Steve (uuid: ...)
 
-// 插件崩溃 → 隔离存储
-// crash/plugins/suspicious_mod/crash_2026-06-13_163500.log 包含:
-// - 插件 ID + 信任等级
-// - 异常堆栈
-// - 最近 50 条该插件的审计日志
+// 鎻掍欢宕╂簝 鈫?闅旂瀛樺偍
+// crash/plugins/suspicious_mod/crash_2026-06-13_163500.log 鍖呭惈:
+// - 鎻掍欢 ID + 淇′换绛夌骇
+// - 寮傚父鍫嗘爤
+// - 鏈€杩?50 鏉¤鎻掍欢鐨勫璁℃棩蹇?```
+
+---
+
+## Phase 11 鈥?Daemon 瀹堟姢杩涚▼ + 鑷紨鍖栧寘锛堥璁?5-7 涓?BUILD锛?
+**鐩爣锛?* 鍐呯疆鍦?ZCSLIB.jar 涓殑绾?Java SE 瀹堟姢杩涚▼锛屽弻 Main-Class 鍒囨崲锛屾枃浠朵氦浜掞紝鏃?IPC銆?
+### 鏋舵瀯
+
+```
+java -jar ZCSLIB.jar                     鈫?NeoForge mod 鍏ュ彛锛圥hase 1-10 鍏ㄩ儴锛?java -jar ZCSLIB.jar --daemon dream      鈫?绾?Java SE Daemon 鍏ュ彛锛堟ⅵ鎿庯級
+```
+
+- 閫氳繃 Manifest 鍙屽叆鍙ｆ垨 Spring Boot PropertiesLauncher 鍒囨崲
+- Daemon 鍏ュ彛浠ｇ爜涓?import 浠讳綍 Minecraft/NeoForge 绫?- 鍒嗗彂鏃跺彧涓€涓?jar
+
+### 浜у嚭
+
+```
+src/main/java/zcslib/daemon/          鈫?绾?Java SE锛岄浂 MC 渚濊禆
+鈹溾攢鈹€ ZCSDaemon.java                    # main() 鍏ュ彛锛孋LI 璺敱
+鈹溾攢鈹€ DreamWorker.java                  # 姊︽搸锛歀2鈫扡3 + MC 楠岃瘉 + 濂栨儵闂幆
+鈹溾攢鈹€ L3Merger.java                     # 涓囪兘 L3 鍚堟垚锛堝 .zcsmem 鍘婚噸鍚堝苟锛?鈹溾攢鈹€ TrainingSetPacker.java            # 鎵撳寘璁粌闆?鈫?.zctsp
+鈹溾攢鈹€ TrainingSetImporter.java          # 瀵煎叆鑱旈偊璁粌闆?鈫?鎷嗚В涓烘湰鍦?L2/L3
+鈹溾攢鈹€ ParamFreezer.java                 # 鍙傛暟鍥哄寲锛氶攣瀹氬叏灞€ + 璁惧畾灞€閮ㄥ熀鍑?鈹溾攢鈹€ RestartEngine.java                # 宕╂簝鈫掑垎鏋?MEM 鈫?閲嶅惎 MC 杩涚▼
+鈹斺攢鈹€ ui/
+    鈹斺攢鈹€ TrainingUI.java               # Swing 榛戝簳缁垮瓧缁堢椋庢牸锛堝弬鏁伴浄杈惧浘绛夛級
+```
+
+### 鍏抽敭绾︽潫
+
+1. **闆朵緷璧?*锛氫粎鐢?`java.base` 妯″潡
+2. **绾?Java SE**锛氫笉寮曠敤 Minecraft銆丯eoForge銆佷换浣曠涓夋柟搴?3. **鍗曞懡浠ゅ惎鍔?*锛歚java -jar ZCSLIB.jar --daemon dream`
+4. **甯搁┗鍐呭瓨 < 50MB**
+
+### 涓?ZCSKernel 浜や簰锛堟枃浠朵氦浜掞紝鏃?IPC锛?
+```
+Daemon 娴佺▼锛?1. 澶囦唤涓婁竴涓増鏈?L3 鏂囦欢锛堟墦鍖呬负 zip锛?2. 璇诲彇 plugins/{id}/memory/l2/*.zcslog 鈫?鍋氭ⅵ 鈫?鐢熸垚鏂?L3
+3. 鍐欏叆 plugins/{id}/memory/l3/{env_hash}.zcsmem
+4. ZCSKernel 涓嬫鍚姩/鐑姞杞芥椂璇诲彇鏂版枃浠?```
+
+### 楠岃瘉鏍囧噯
+
+```
+> java -jar ZCSLIB.jar --daemon dream
+[DAEMON] ZCSLIB Daemon v0.2.0
+[DAEMON] DreamWorker: scanning L2 journals...
+[DAEMON] Found 3 plugins with L2 data
+[DAEMON] Plugin 'mi2': extracting features... 6 patterns matched
+[DAEMON] Generating candidate L3 rules... 2 rules generated
+[DAEMON] Starting MC verification...
+[DAEMON] MC stable for 120s 鈫?rules validated
+[DAEMON] Writing L3 memory 鈫?plugins/mi2/memory/l3/a1b2c3d4.zcsmem
+[DAEMON] Dream cycle complete.
 ```
 
 ---
 
-## Phase 11 — Daemon 守护进程（预计 4-5 个 BUILD）
-
-**目标：** 独立 JVM 进程，监控 Host 存活，自动重启，训练模式。
-
-### 产出（独立项目，非 NeoForge mod）
-
+## Phase 12 鈥?璁ょ煡涓庤嚜婕斿寲浣撶郴锛堥璁?5-7 涓?BUILD锛?
+**鐩爣锛?* L1-L4 鍥涢樁璁板繂绯荤粺 + 姊︽搸 + 鍘嬬缉浣撶郴 + 鍙傛暟鍥哄寲锛屾浛浠ｇ櫧鐨功鏃х殑涓夐樁 Kitten/Adult/Elder 妯″瀷銆?
+> **娉ㄦ剰**锛氱櫧鐨功 搂9 鐨勮蹇嗛儴鍒嗗凡杩囨棫锛孭hase 12 浠ヨ璁℃枃浠?`zcslib-evolution-design.md` 涓哄噯銆?
+### 12.1 璁ょ煡浣撶郴锛圠1-L4 鍥涢樁璁板繂锛?
 ```
-zcslib-daemon/
-├── build.gradle              # 纯 Java SE，零依赖（连 NeoForge 都不引）
-├── src/main/java/com/dlzstudio/zcslib/daemon/
-│   ├── ZCSDaemon.java        # main() 入口
-│   ├── HostMonitor.java      # PID 监控（ProcessHandle）
-│   ├── IPCBridge.java        # Socket 通信（Host ↔ Daemon）
-│   ├── RestartEngine.java    # 崩溃→分析 MEM → 重启进程
-│   └── ui/
-│       └── TrainingUI.java   # Swing 黑底绿字终端风格
+src/main/java/zcslib/evolution/
+鈹溾攢鈹€ memory/
+鈹?  鈹溾攢鈹€ L1Buffer.java          # 500 tick Ring Buffer锛岃褰曞師濮嬭皟鐢ㄩ摼甯?鈹?  鈹溾攢鈹€ L1Snapshot.java        # 宕╂簝鏃跺喕缁?L1Buffer 鈫?纾佺洏 .zcsl1
+鈹?  鈹溾攢鈹€ L2Journal.java         # 鍗曟杩愯 append-only 浜嬩欢鏃ュ織 鈫?.zcslog
+鈹?  鈹溾攢鈹€ L3Memory.java          # 闀挎湡浣滄垬鎵嬪唽锛堝甫鐜/浜烘牸/绛栫暐锛夆啋 .zcsmem
+鈹?  鈹斺攢鈹€ L4Instinct.java        # 鏈兘妯″紡搴擄紙纭紪鐮?+ 鍙拷鍔狅級鈫?.zcsinst
 ```
 
-### 关键约束（白皮书 9.2.2 铁律）
-
-1. **零依赖**：仅用 `java.base` 模块
-2. **纯 Java SE**：不引用 Minecraft、NeoForge、任何第三方库
-3. **单命令启动**：`java -jar zcslib-daemon.jar`
-4. **常驻内存 < 50MB**
-
-### IPC 协议
-
-```
-Host → Daemon:  "HEARTBEAT:{timestamp}:{mem_mb}:{tps}"
-Daemon → Host:  "ACK" / "RESTART" / "LOCK:{plugin_id}" / "EVOLVE:{action}"
-```
-
-### 验证标准
-
-```
-> java -jar zcslib-daemon.jar
-[DAEMON] ZCSLIB Daemon v0.1.0
-[DAEMON] Monitoring host PID 12345 ...
-[DAEMON] Host heartbeat: 60 TPS, 2048MB, 3 plugins
-[DAEMON] Host crash detected at 16:45:32
-[DAEMON] Analyzing crash logs ...
-[DAEMON] Restarting host JVM ...
-[DAEMON] Host restarted (PID 12389)
-```
-
----
-
-## Phase 12 — 自适应演化（预计 3-4 个 BUILD）
-
-**目标：** MEM 记忆文件 + 三阶段生命周期 + 训练模式引擎。
-
-### 产出
-
-```
-src/main/java/com/dlzstudio/zcslib/
-├── evolution/
-│   ├── EvolutionEngine.java   # Phase 1/2/3 状态机
-│   ├── MEMFile.java           # .mem.json 读写
-│   ├── CodeFolder.java        # 骨架/血肉拆分 + 惰性解压
-│   └── Acclimatizer.java      # 跨环境适应协议（静默期→微调→转正）
-└── daemon/
-    └── Trainer.java           # 训练模式引擎（激进试探 → 崩溃 → 修复 → 循环）
-```
-
-### 关键决策
-
-- **Phase 迁移**：新插件 Phase 1（Kitten，纯观察）→ 资源紧张 Phase 2（Adult，试探压缩）→ 多次验证 Phase 3（Elder，确定策略）
-- **新插件冷却**：前 10 次调用禁止任何压缩（白皮书 9.7）
-- **N 级护盾**：主线程逻辑永不被压缩或熔断
-
-### 验证标准
-
-```
-# MEM 文件示例
-{
-  "pluginId": "mi2",
-  "phase": "ELDER",
-  "safe_actions": ["compress_shader_cache"],
-  "unsafe_actions": ["compress_frame_buffer"],
-  "crash_count": 3,
-  "survival_hours": 120.5
-}
-```
-
----
-
-## 里程碑与预计 BUILD 数
-
-| 里程碑 | 包含 Phase | 预计 BUILD | 状态 |
+| 灞傜骇 | 鐢熷懡鍛ㄦ湡 | 瀛樺偍璺緞 | 鑱岃矗 |
 |:---|:---|:---|:---|
-| **M1: 骨架** | 1-2 | 3 | 内核可启动 + 日志可写 |
-| **M2: 单机内核** | 3-6 | 9 | 插件可加载/调度/读写文件 |
-| **M3: 多插件协同** | 7-8 | 5 | 服务注册 + 事件总线 |
-| **M4: 联网底座** | 9-10 | 5 | 主包通信 + 完整审计 |
-| **M5: 不死鸟** | 11-12 | 8 | Daemon 守护 + 自适应演化 |
+| L1 | 500 tick 婊戠獥 | `memory/l1/{ts}.zcsl1` | 鐬椂蹇収 + 宕╂簝鍙栬瘉 |
+| L2 | 鍗曟杩愯鍛ㄦ湡 | `plugins/{id}/memory/l2/{date}.zcslog` | 鏉傛暎浜嬩欢鏃ュ織锛屽仛姊﹀師鏂?|
+| L3 | 姘镐箙 | `plugins/{id}/memory/l3/{env_hash}.zcsmem` | 鐜鐗瑰寲浣滄垬鎵嬪唽 |
+| L4 | 姘镐箙 | `memory/l4/instinct.zcsinst` | 鏋佺畝鐗瑰緛鐮佸厹搴?|
 
-**总计：约 30 BUILD**
+### 12.2 姊︽搸锛圖reamWorker锛夆€?鐢?Phase 11 Daemon 椹卞姩
+
+瑙佽璁℃枃浠舵ā鍧楀洓锛屾牳蹇冩祦姘寸嚎锛?
+```
+L2 鏃ュ織 鈫?婊戝姩绐楀彛缁熻 鈫?澶氱淮鐗瑰緛鍚戦噺 鈫?妯″紡鍖归厤(L4 渚? 鈫?鍗遍櫓绛夌骇鍒ゅ畾
+    鈫?鐢熸垚鍊欓€?L3 瑙勫垯 鈫?MC 楠岃瘉 鈫?濂栨儵璋冩暣鍙傛暟 鈫?鍐欏叆 L3
+```
+
+- 妯″紡搴撶敱 L4 缁存姢锛屾ⅵ鎿庡彧绠℃秷璐?- 楠岃瘉锛氬惎鍔ㄥ悓涓€ MC 鐗堟湰锛岃繘涓荤晫闈㈠悗閰嶇疆鏃堕檺鍐呮湭宕╂簝 鈫?閫氳繃
+- v0.2.0-M4 浠呮墜鍔ㄨЕ鍙戯紙`--daemon dream`锛夛紝涓嶅仛鑷姩璋冨害
+
+### 12.3 鍙傛暟浣撶郴
+
+```
+src/main/java/zcslib/evolution/
+鈹溾攢鈹€ params/
+鈹?  鈹溾攢鈹€ GlobalParams.java      # 鐔靛蹇嶅害/鑷剤绱ц揩搴?璧勬簮璐┆搴?鎵弿鏁忔劅搴?鈹?  鈹溾攢鈹€ LocalParams.java       # 鍘嬪埗鍊惧悜/鎻愭潈鍊惧悜/璧勬簮鏉冮噸锛埪?0% 娉㈠姩锛?鈹?  鈹溾攢鈹€ BilateralParams.java   # 鍐茬獊瑁佸喅鍊惧悜/杩炲甫闄嶇骇鍊惧悜/鏇夸唬鍋忓ソ
+鈹?  鈹斺攢鈹€ AttentionParams.java   # 鍏虫敞搴?閬楀繕閫熺巼锛堝姩鎬侊紝涓嶅浐鍖栵級
+```
+
+| 绫诲瀷 | 鍥哄寲琛屼负 | 娉㈠姩闄愬埗 |
+|:---|:---|:---|
+| 鍏ㄥ眬鍙傛暟 | 鍙浐鍖栵紝鍥哄寲鍚庣粷瀵归攣瀹?| 鏃犳尝鍔?|
+| 灞€閮ㄥ弬鏁?| 鍙浐鍖栧熀鍑嗗€?| 卤10% 杞害鏉?|
+| 娉ㄦ剰鍔?| 涓嶅浐鍖?| 鍔ㄦ€?|
+
+### 12.4 鍘嬬缉浣撶郴
+
+```
+src/main/java/zcslib/evolution/
+鈹溾攢鈹€ quarantine/
+鈹?  鈹溾攢鈹€ StubReplacer.java      # ASM/Proxy 灏嗗嵄闄╂柟娉曡繑鍥?0/null
+鈹?  鈹溾攢鈹€ KernelCache.java       # Daemon 娌欑 ClassLoader 闅旂杩愯
+鈹?  鈹溾攢鈹€ CollateralDegrader.java # 鐗虹壊娆¤ B锛屼繚鍏ㄦ牳蹇?A
+鈹?  鈹斺攢鈹€ TimelineRollback.java  # L1 蹇収 鈫?鍥為€€涓栫晫 CompoundTag
+```
+
+| 褰㈡€?| 閫傜敤鍦烘櫙 | 鍓綔鐢?| 鍙€嗘€?|
+|:---|:---|:---|:---|
+| Stub 鏇挎崲 | 浣庨闄┿€侀潪鏍稿績 | 鍔熻兘澶辨晥锛岀郴缁熶笉宕?| 鉁?|
+| KernelCache 闅旂 | 楂橀闄┿€佸叧閿矾寰?| 寤惰繜澧炲姞锛屽姛鑳藉畬鏁?| 鉁?|
+| 杩炲甫闄嶇骇 | 涓ゆ彃浠跺啿绐?| B 鍔熻兘鍙楁崯 | 鈿狅笍 |
+| 鏃剁┖鍥為€€ | 鐮村潖鎬ф瀬寮?| 鐜╁鎰熺煡鏃堕棿鍊掓祦 | 鉂?|
+
+### 12.5 濂栨儵闂幆
+
+```
+鍋氭ⅵ 鈫?鏂?L3 鈫?MC 楠岃瘉
+   鈹溾攢鈹€ 宕╂簝 鈫?鎯╃綒 鈫?entropy鈫?urgency鈫?鈫?鏇翠繚瀹?   鈹斺攢鈹€ 澶氭绋冲畾鏃犳姤閿?鈫?濂栧姳 鈫?entropy鈫?urgency鈫?鈫?鏇存縺杩?```
+
+- 鏃犵洃绠¤缁冩椂宕╂簝绱Н 鈫?鑷劧閫€鍖栧洖淇濆畧娲?- 绠＄悊鍛樻墜鍔ㄨ皟婵€杩涗絾涓嶅浐鍖?鈫?鍑犺疆鍚庡張閫€鍖?- 鍥哄寲鏄敮涓€闃绘閫€鍖栨墜娈?
+### 楠岃瘉鏍囧噯
+
+```
+# L1 宕╂簝蹇収
+[CRASH] Plugin-B tick timeout 鈫?L1 snapshot saved to memory/l1/1718313600.zcsl1
+
+# L3 瑙勫垯鍐欏叆
+[DAEMON] L3 rule written: auto_PluginB_tick_perf_degrade_001 鈫?SOFT_THROTTLE, confidence 0.75
+
+# 鍘嬬缉鎵ц
+[QUARANTINE] Plugin-B render callback 鈫?Stub replaced (return null), reason: 3 consecutive timeouts
+```
 
 ---
 
-## 不在此路径中的内容（明确推迟）
+## 閲岀▼纰戜笌棰勮 BUILD 鏁?
+| 閲岀▼纰?| 鍖呭惈 Phase | 棰勮 BUILD | 鐘舵€?|
+|:---|:---|:---|:---|
+| **M1: 楠ㄦ灦** | 1-2 | 3 | 鉁?鍐呮牳鍙惎鍔?+ 鏃ュ織鍙啓 |
+| **M2: 鍗曟満鍐呮牳** | 3-6 | 9 | 鉁?鎻掍欢鍙姞杞?璋冨害/璇诲啓鏂囦欢 |
+| **M3: 澶氭彃浠跺崗鍚?* | 7-8 | 5 | 鉁?鏈嶅姟娉ㄥ唽 + 浜嬩欢鎬荤嚎 |
+| **M4: 鑱旂綉搴曞骇** | 9-10 | 7 | 鉁?缃戠粶灞?+ 瀹¤/宕╂簝鏃ュ織 (BUILD.00000019) |
+| **M5: 涓嶆楦?* | 11-12 | 5 | 鉁?鑷紨鍖栧寘 + 璁ょ煡浣撶郴 (BUILD.00000024) |
 
-| 内容 | 原因 |
+**鎬昏锛氬疄闄?24 BUILD锛圡1-M5 鍏ㄩ儴瀹屾垚锛?*
+
+> **M5 瀹屾垚鐘舵€?*锛欱UILD.00000024 宸插畬鎴?Phase 10锛堝璁?+ LogRotator锛? Phase 11锛圖aemon 9 鏂囦欢 + 鍙屽叆鍙ｏ級+ Phase 12锛堣鐭ヤ綋绯?18 鏂囦欢 + 涔濆瓙绯荤粺鍏ㄦ帴绾匡級銆倊55+ Java 婧愭枃浠躲€?
+## 璁捐鍙傝€?
+- **鑷紨鍖栧寘瀹屾暣璁捐**锛歚C:\Users\ASUS\.qclaw\workspace-agent-5e453a01\zcslib-evolution-design.md`
+  - 妯″潡涓€锛氳鐭ヤ綋绯伙紙L1-L4 + 鍋氭ⅵ + 鑱旈偊锛?  - 妯″潡浜岋細鍙傛暟浣撶郴锛堝叏灞€/灞€閮?鍙岃竟 + 鍥哄寲 + 濂栨儵锛?  - 妯″潡涓夛細鍘嬬缉浣撶郴锛圫tub/KernelCache/杩炲甫闄嶇骇/鏃剁┖鍥為€€锛?  - 妯″潡鍥涳細姊︽搸锛堟棩蹇楃悊瑙?+ MC 楠岃瘉 + 濂栨儵闂幆锛?  - 妯″潡浜旓細璺緞浣撶郴锛堝榻愮櫧鐨功鏍圭洰褰?+ 鏂板 MEM 璺緞锛?
+---
+
+## 涓嶅湪姝よ矾寰勪腑鐨勫唴瀹癸紙鏄庣‘鎺ㄨ繜锛?
+| 鍐呭 | 鍘熷洜 |
 |:---|:---|
-| Standalone Mod 自动适配（Auto-Adapt） | 虚拟 PEC 生成逻辑需 M2 稳定后再设计 |
-| 配置管理器插件（ZCSConfigAdmin） | 需服务注册表成熟后作为"第一个 N 级特殊插件"实现 |
-| Gradle 插件 / SDK | 内核 API 稳定后（M3 之后）再提供给外部开发者 |
-| 可视化 Daemon UI 完整版 | Phase 11 先出 CLI 文本界面，Swing 窗口留到 M5 后期 |
+| Standalone Mod 鑷姩閫傞厤锛圓uto-Adapt锛?| 铏氭嫙 PEC 鐢熸垚閫昏緫闇€ M2 绋冲畾鍚庡啀璁捐 |
+| 閰嶇疆绠＄悊鍣ㄦ彃浠讹紙ZCSConfigAdmin锛?| 闇€鏈嶅姟娉ㄥ唽琛ㄦ垚鐔熷悗浣滀负"绗竴涓?N 绾х壒娈婃彃浠?瀹炵幇 |
+| Gradle 鎻掍欢 / SDK | 鍐呮牳 API 绋冲畾鍚庯紙M3 涔嬪悗锛夊啀鎻愪緵缁欏閮ㄥ紑鍙戣€?|
+| 鍙鍖?Daemon UI 瀹屾暣鐗?| Phase 11 鍏堝嚭 CLI 鏂囨湰鐣岄潰锛孲wing 绐楀彛鐣欏埌 M5 鍚庢湡 |

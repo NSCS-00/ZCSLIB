@@ -31,7 +31,8 @@ tasks.named('jar', Jar) {
             'Build-Time': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
             'Implementation-Title': 'ZCSLIB',
             'Implementation-Version': project.version,
-            'Specification-Vendor': 'DLZ Studio'
+            'Specification-Vendor': 'DLZ Studio',
+            'Main-Class': 'zcslib.Launcher'
         )
     }
 }

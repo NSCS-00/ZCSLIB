@@ -101,8 +101,8 @@ PEC 的 `entrypoint` 字段指向的类，其 Java **包名推荐**为 `zcslib.[
 
 ```
 PEC 存在 AND pluginId 已设置
-  → 包含 com/dlzstudio/ 包 → N (Trusted)
-  → 不包含 dlzstudio 包 → R (Recognized)
+  → 包含 zcslib 包名 → N (Trusted)
+  → 不包含 zcslib 包名 → R (Recognized)
 
 PEC 不存在
   → 有 neoforge.mods.toml → A (Auto-Adapt)

@@ -34,7 +34,15 @@
 | config:load / save / reload | ✅ | ✅ | ✅ | ✅ |
 | pdc:save / load / delete | ✅ | ✅ | ✅ | ✅ |
 | resource:file | ✅ | ✅ | ✅ | ✅ |
+| network:send:standard | ✅ | ✅ | ✅ | ✅ |
 | network:send:main | ✅ | ✅ | ✅ | ❌ |
+| network:offline | ✅ | ✅ | ✅ | ✅ |
+| network:replay | ✅ | ✅ | ✅ | ✅ |
+| audit:log | ✅ | ✅ | ✅ | ✅ |
+| audit:cross | ✅ | ✅ | ✅ | ✅ |
+| memory:l4-check | ✅ | ✅ | ✅ | ✅ |
+| memory:l3-query | ✅ | ✅ | ✅ | ✅ |
+| memory:decide | ✅ | ✅ | ✅ | ✅ |
 
 ### 设计哲学
 
@@ -63,7 +71,7 @@ PECScanner 扫描 JAR 中的 PEC.json
 PECValidator.parse(pecContent)
   ↓
 检查 pluginId:
-  ├─ 包含 "dlzstudio" → N
+  ├─ 包含 "zcslib" → N
   └─ 不包含 → R
   ↓
 PECValidator.validate(schema, environment)
@@ -95,6 +103,9 @@ public OrderResult order(String cmd, Object... args) {
         case "config:"    -> configDispatch(cmd, args, trust);
         case "pdc:"       -> pdcDispatch(cmd, args, trust);
         case "resource:"  -> resourceDispatch(cmd, args, trust);
+        case "network:"   -> networkDispatch(cmd, args, trust);
+        case "audit:"     -> auditDispatch(cmd, args, trust);
+        case "memory:"    -> memoryDispatch(cmd, args, trust);
         default           -> OrderResult.fail("UNKNOWN_COMMAND: " + prefix);
     };
 }
@@ -118,4 +129,4 @@ public OrderResult order(String cmd, Object... args) {
 [ZCSLIB-AUDIT] [S] unknown-plugin → scheduler:compute → ❌ FORBIDDEN:S compute
 ```
 
-可通过 `config/DLZstudio/ZCSLIB/logs/audit.log` 查看完整审计记录。
+可通过 `config/DLZstudio/ZCSLIB/audit/N/zcslib_{date}.log` 查看完整审计记录。

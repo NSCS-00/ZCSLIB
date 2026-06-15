@@ -62,20 +62,20 @@ public class MyEvent implements Cancelable {
 ### 注册
 
 ```java
-ctx.kernel().order("event:register", ctx.getPluginId(), this);
+ctx.order("event:register", ctx.getPluginId(), this);
 // ZCSLEventBus 自动扫描 this 上的所有 @Subscribe 方法
 ```
 
 ### 发布
 
 ```java
-ctx.kernel().order("event:post", new EnergyChangeEvent(5000, 3000));
+ctx.order("event:post", new EnergyChangeEvent(5000, 3000));
 ```
 
 ### 注销
 
 ```java
-ctx.kernel().order("event:unregister", ctx.getPluginId(), this);
+ctx.order("event:unregister", ctx.getPluginId(), this);
 ```
 
 ---

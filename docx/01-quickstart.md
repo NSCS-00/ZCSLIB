@@ -115,7 +115,7 @@ public class MyPlugin {
         ctx.getLogger().info("数据目录: %s", ctx.getDataFolder().getAbsolutePath());
 
         // 读配置
-        OrderResult r = ctx.kernel().order("config:load",
+        OrderResult r = ctx.order("config:load",
             ctx.getPluginId(), "settings.json");
         if (r.isOk() && r.getData() != null) {
             @SuppressWarnings("unchecked")
@@ -124,7 +124,7 @@ public class MyPlugin {
         }
 
         // 注册一个服务
-        ctx.kernel().order("service:register", ctx.getPluginId(),
+        ctx.order("service:register", ctx.getPluginId(),
             "hello", "返回问候语", (ServiceProvider) name ->
                 "Hello from " + ctx.getPluginId() + "!");
 

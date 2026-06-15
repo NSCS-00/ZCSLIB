@@ -22,12 +22,12 @@ ZCSScheduler 提供三层调度能力：
 ### 用法
 
 ```java
-ctx.kernel().order("scheduler:compute", ctx.getPluginId(), (Runnable) () -> {
+ctx.order("scheduler:compute", ctx.getPluginId(), (Runnable) () -> {
     // ① 耗时计算（离线线程）
     PathResult result = doAStarPathfinding(world, start, end);
 
     // ② 回主线程更新 Minecraft 状态
-    ctx.kernel().order("scheduler:queueSync", ctx.getPluginId(), (Runnable) () -> {
+    ctx.order("scheduler:queueSync", ctx.getPluginId(), (Runnable) () -> {
         player.sendSystemMessage(Component.literal(
             "路径长度: " + result.getPath().size() + " 步"
         ));
@@ -40,7 +40,7 @@ ctx.kernel().order("scheduler:compute", ctx.getPluginId(), (Runnable) () -> {
 插件提交任务超过并发上限时，返回拒绝：
 
 ```java
-OrderResult r = ctx.kernel().order("scheduler:compute", ctx.getPluginId(), heavyTask);
+OrderResult r = ctx.order("scheduler:compute", ctx.getPluginId(), heavyTask);
 if (!r.isOk()) {
     ctx.getLogger().warn("计算任务被拒绝: %s", r.getError());
     // 可能错误:
@@ -90,7 +90,7 @@ Tick N 结束
 ### 锁定期间行为
 
 ```
-ctx.kernel().order("scheduler:compute", pluginId, task)
+ctx.order("scheduler:compute", pluginId, task)
 → OrderResult.fail("BULKHEAD: Plugin 'X' L3 compute is locked")
 ```
 
@@ -104,7 +104,7 @@ ctx.kernel().order("scheduler:compute", pluginId, task)
 
 ```
 插件代码:
-  ctx.kernel().order("scheduler:compute", pid, task)
+  ctx.order("scheduler:compute", pid, task)
     │
     ▼
 ZCSKernel.order()

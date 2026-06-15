@@ -54,9 +54,13 @@ public class LogRotator {
                 try (DirectoryStream<Path> files = Files.newDirectoryStream(trustDir, "*.log")) {
                     for (Path file : files) {
                         String name = file.getFileName().toString();
-                        // Filename format: yyyy-MM-dd.log
+                        // Filename format: {pluginId}_{yyyy-MM-dd}.log
+                        int underscore = name.lastIndexOf('_');
+                        int dot = name.lastIndexOf('.');
+                        if (underscore < 0 || underscore + 11 > dot) continue;
                         try {
-                            String dateStr = name.substring(0, 10);
+                            String dateStr = name.substring(underscore + 1, dot);
+                            if (dateStr.length() != 10) continue;
                             LocalDate fileDate = LocalDate.parse(dateStr, DATE_FMT);
                             if (fileDate.isBefore(cutoff)) {
                                 long size = Files.size(file);

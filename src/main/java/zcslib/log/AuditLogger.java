@@ -1,7 +1,5 @@
 package zcslib.log;
 
-import zcslib.api.TrustLevel;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -10,64 +8,127 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Trust-level separated audit log.
+ * Thread-safe audit logger — writes to trust-level-partitioned directories.
  * <p>
- * Writes to {@code logs/zcslib/audit/{N,R,A,S}/} so operators can
- * triage audit entries by sensitivity without filtering a single file.
+ * Directory layout:
+ * <pre>
+ * logs/zcslib/audit/
+ *   N/{pluginId}.log    — native/friendly
+ *   R/{pluginId}.log    — recognized
+ *   A/{pluginId}.log    — auto-adapt
+ *   S/{pluginId}.log    — suspicious (forced audit)
+ * </pre>
  * <p>
- * Thread-safe (synchronized per file).
+ * Every cross-trust call, blocked operation, or security-relevant event
+ * is written here. N/R/A entries are INFO-level (decorative). S-level
+ * entries are WARN-level (mandatory for server admin review).
  */
 public class AuditLogger {
 
-    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final Path AUDIT_ROOT = Path.of("logs", "zcslib", "audit");
+    private static final DateTimeFormatter TS =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-    private AuditLogger() {} // utility class
+    private final Path root;
+    private final Map<String, BufferedWriter> writers = new ConcurrentHashMap<>();
+
+    public AuditLogger(Path root) {
+        this.root = root;
+    }
+
+    // ── Public API ──────────────────────────────────────────
 
     /**
-     * Write an audit entry to the trust-level bucket.
+     * Record an audit event.
      *
-     * @param trust    trust level → determines subdirectory
-     * @param pluginId source plugin (or "kernel")
-     * @param action   action name (e.g. "send:standard", "config:save")
-     * @param detail   human-readable detail
+     * @param trust     trust level of the subject plugin
+     * @param pluginId  plugin that triggered the event
+     * @param category  short category tag (e.g. "SERVICE_CROSS", "BLOCKED", "COMPRESS")
+     * @param detail    human-readable description
      */
-    public static void log(TrustLevel trust, String pluginId, String action, String detail) {
-        String dir = trust.name(); // N, R, A, S
-        String date = LocalDateTime.now().format(DATE);
-        String timestamp = LocalDateTime.now().format(TS);
+    public void log(zcslib.api.TrustLevel trust, String pluginId,
+                    String category, String detail) {
+        String dir = switch (trust) {
+            case N  -> "N";
+            case R  -> "R";
+            case A  -> "A";
+            case S  -> "S";
+        };
 
-        Path file = AUDIT_ROOT.resolve(dir).resolve(date + ".log");
-        String line = String.format("[%s] [%s] [%s] %s — %s%n",
-                timestamp, trust.name(), pluginId, action, detail);
+        // Date-based filename: {pluginId}_{yyyy-MM-dd}.log
+        String date = java.time.LocalDate.now().toString();
+        String filename = sanitize(pluginId) + "_" + date + ".log";
+        String key = dir + "/" + filename;
+        String line = String.format("[%s] [%s] [%s] %s | %s%n",
+                LocalDateTime.now().format(TS), trust.name(), pluginId,
+                category, detail);
 
         try {
-            Files.createDirectories(file.getParent());
-            synchronized (AuditLogger.class) {
-                try (BufferedWriter w = Files.newBufferedWriter(file,
-                        StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+            BufferedWriter w = writers.computeIfAbsent(key, k -> {
+                Path file = root.resolve(k);
+                try {
+                    Files.createDirectories(file.getParent());
+                    return Files.newBufferedWriter(file, StandardCharsets.UTF_8,
+                            StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                } catch (IOException e) {
+                    System.err.println("[ZCSLIB] AuditLogger: cannot open " + file + " — " + e.getMessage());
+                    return null;
+                }
+            });
+            if (w != null) {
+                synchronized (w) {
                     w.write(line);
+                    w.flush();
                 }
             }
-        } catch (IOException e) {
-            System.err.println("[ZCSLIB] AuditLogger write failed: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("[ZCSLIB] AuditLogger write failure: " + e.getMessage());
         }
     }
 
     /**
-     * Convenience overload using {@code "kernel"} as source.
+     * Convenience: log with auto-detected severity based on trust level.
+     * S-level events get {@code [WARN]} prefix in the log line.
      */
-    public static void kernel(TrustLevel trust, String action, String detail) {
-        log(trust, "kernel", action, detail);
+    public void logTrusted(String pluginId, String category, String detail,
+                           zcslib.api.TrustLevel caller, zcslib.api.TrustLevel callee) {
+        String severity = (caller == zcslib.api.TrustLevel.S ||
+                          callee == zcslib.api.TrustLevel.S) ? "WARN" : "INFO";
+        String full = String.format("[%s] caller=%s callee=%s — %s",
+                severity, caller.name(), callee.name(), detail);
+        log(caller, pluginId, category, full);
     }
 
     /**
-     * Get the root audit directory (for use by LogRotator).
+     * Flush all open writers. Called at shutdown.
      */
+    public void flushAll() {
+        for (Map.Entry<String, BufferedWriter> e : writers.entrySet()) {
+            try { e.getValue().flush(); } catch (IOException ignored) {}
+        }
+    }
+
+    /**
+     * Close all writers. Called at shutdown.
+     */
+    public void closeAll() {
+        for (Map.Entry<String, BufferedWriter> e : writers.entrySet()) {
+            try { e.getValue().close(); } catch (IOException ignored) {}
+        }
+        writers.clear();
+    }
+
+    /** Canonical audit root (static, for LogRotator). */
     public static Path getAuditRoot() {
-        return AUDIT_ROOT;
+        return Path.of("logs", "zcslib", "audit");
+    }
+
+    // ── Internal ────────────────────────────────────────────
+
+    private static String sanitize(String s) {
+        return s.replaceAll("[^a-zA-Z0-9._-]", "_");
     }
 }
