@@ -17,7 +17,7 @@ class SimplePluginContext implements PluginContext {
     private final File configFolder;
     private final File cacheDir;
     private final ZCSLogger logger;
-    private final TrustLevel trustLevel;
+    private volatile TrustLevel trustLevel;
     private final ZCSKernel kernel;
 
     SimplePluginContext(String pluginId, File dataFolder, File configFolder,
@@ -39,6 +39,11 @@ class SimplePluginContext implements PluginContext {
     @Override public ZCSLogger getLogger()    { return logger; }
     @Override public TrustLevel getTrustLevel(){ return trustLevel; }
     @Override public ZCSKernel kernel()       { return kernel; }
+
+    /** Update trust level in-place (used by demotePlugin / markAsBanned). */
+    void setTrustLevel(TrustLevel newTrust) {
+        this.trustLevel = newTrust;
+    }
 
     @Override
     public OrderResult order(String command, Object... args) {

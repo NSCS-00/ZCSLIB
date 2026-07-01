@@ -1,8 +1,6 @@
 package zcslib.persistence;
 
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtAccounter;
-import net.minecraft.nbt.NbtIo;
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
@@ -39,7 +37,7 @@ public class PDCBackend {
 
         try {
             Files.createDirectories(dataDir.toPath());
-            NbtIo.writeCompressed(tag, tmpPath);
+            NbtBridge.writeCompressed(tag, tmpPath);
             Files.move(tmpPath, filePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             LOGGER.debug("[ZCSLIB] PDC saved: key={}, size={} bytes", key, tag.sizeInBytes());
             return true;
@@ -58,17 +56,17 @@ public class PDCBackend {
     public CompoundTag load(File dataDir, String key) {
         Path filePath = dataDir.toPath().resolve(sanitizeKey(key) + ".dat");
         if (!Files.exists(filePath)) {
-            return new CompoundTag();
+            return NbtBridge.empty();
         }
 
         try {
-            CompoundTag tag = NbtIo.readCompressed(filePath, NbtAccounter.unlimitedHeap());
+            CompoundTag tag = NbtBridge.readCompressed(filePath);
             LOGGER.debug("[ZCSLIB] PDC loaded: key={}, size={} bytes", key,
                     tag != null ? tag.sizeInBytes() : 0);
-            return tag != null ? tag : new CompoundTag();
+            return tag != null ? tag : NbtBridge.empty();
         } catch (IOException e) {
             LOGGER.error("[ZCSLIB] Failed to load PDC key '{}': {}", key, e.getMessage());
-            return new CompoundTag();
+            return NbtBridge.empty();
         }
     }
 

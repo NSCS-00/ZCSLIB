@@ -54,22 +54,24 @@ Set-Content -Path $buildIdFile -Value $newIdStr -NoNewline
 $projectRoot = Join-Path $PSScriptRoot "..\.."
 Set-Location $projectRoot
 
-$env:JAVA_HOME = $JAVA_HOME
-$env:PATH = "$JAVA_HOME\bin;$env:PATH"
-
 Write-Host "`n[1/2] Executing Gradle build..." -ForegroundColor Yellow
-$gradleArgs = @(
-    "build",
-    "--no-daemon",
-    "-Dorg.gradle.java.home=$JAVA_HOME",
-    "-Dbuild.id=$buildIdentifier"
-)
 
-$gradleProc = Start-Process -FilePath "$GRADLE_HOME\gradle.bat" `
-    -ArgumentList $gradleArgs `
-    -NoNewWindow -Wait -PassThru
+# Write temp bat (bypass ALL PS env issues)
+$batPath = "$env:TEMP\zcslib_build.bat"
+@"
+@echo off
+set JAVA_HOME=$JAVA_HOME
+set "PATH=$JAVA_HOME\bin;%PATH%"
+cd /d "$projectRoot"
+call "$GRADLE_HOME\gradle.bat" build --no-daemon "-Dorg.gradle.java.home=$JAVA_HOME" "-Dbuild.id=$buildIdentifier"
+exit /b %ERRORLEVEL%
+"@ | Out-File -FilePath $batPath -Encoding ASCII
 
-if ($gradleProc.ExitCode -ne 0) {
+cmd /c $batPath 2>&1
+$exitCode = $LASTEXITCODE
+Remove-Item $batPath -ErrorAction SilentlyContinue
+
+if ($exitCode -ne 0) {
     Write-Host "`nBUILD FAILED! Reverting BUILDID..." -ForegroundColor Red
     Set-Content -Path $buildIdFile -Value $currentId -NoNewline
     exit 1

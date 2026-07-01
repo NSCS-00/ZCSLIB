@@ -31,7 +31,7 @@ public class ServiceRegistry {
 
     /** Interface names that S-level plugins cannot register. */
     private static final List<String> CORE_KEYWORDS = List.of(
-            "kernel", "core", "security", "auth", "audit", "zx", "cypher"
+            "Kernel", "Admin", "PlayerData", "NetworkMain"
     );
 
     private final ZCSLogger logger;
@@ -85,6 +85,37 @@ public class ServiceRegistry {
     public <T> T get(Class<T> api) {
         ServiceEntry entry = services.get(api);
         return entry != null ? (T) entry.impl() : null;
+    }
+
+    /**
+     * Typed lookup with cross-trust audit logging.
+     * Audits caller trust vs provider trust:
+     * <ul>
+     *   <li>N → S: WARN (high-trust calling low-trust)</li>
+     *   <li>S → N: SECURITY (low-trust calling high-trust)</li>
+     *   <li>N → N: INFO</li>
+     * </ul>
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T get(Class<T> api, String callerId, TrustLevel callerTrust) {
+        ServiceEntry entry = services.get(api);
+        if (entry == null) return null;
+
+        // Cross-trust audit
+        TrustLevel providerTrust = entry.trust();
+        if (callerTrust == TrustLevel.S && providerTrust.ordinal() < TrustLevel.S.ordinal()) {
+            logger.warn("AUDIT: [SECURITY] S-level plugin '{}' called {} provided by [{}] '{}'",
+                    callerId, api.getSimpleName(), providerTrust.name(), entry.providerId());
+        } else if (callerTrust.ordinal() < TrustLevel.S.ordinal() && providerTrust == TrustLevel.S) {
+            logger.warn("AUDIT: [WARN] [{}] plugin '{}' called {} provided by S-level '{}'",
+                    callerTrust.name(), callerId, api.getSimpleName(), entry.providerId());
+        } else {
+            logger.info("AUDIT: [{}→{}] '{}' called {} provided by '{}'",
+                    callerTrust.name(), providerTrust.name(),
+                    callerId, api.getSimpleName(), entry.providerId());
+        }
+
+        return (T) entry.impl();
     }
 
     /**

@@ -1,0 +1,193 @@
+classDiagram
+    direction TB
+
+    %% ── Kernel ──
+    class ZCSKernel {
+        -ZCSLogger logger
+        -PluginLoader pluginLoader
+        -ZCSScheduler scheduler
+        -ZCSLEventBus eventBus
+        -ZCSNetwork network
+        -McPort mcPort
+        -CommandAdapter commandAdapter
+        -AuditLogger auditLogger
+        -PerfMonitor perfMonitor
+        -LagGuard lagGuard
+        -LeakDetector leakDetector
+        -CrashGuard crashGuard
+        -AutoSave autoSave
+        -PermissionNode permissionNode
+        -CommandWhitelist commandWhitelist
+        -NetworkAudit networkAudit
+        -BanHammer banHammer
+        +orderTraced(pluginId, command, args) OrderResult
+        -dispatch0(pluginId, command, args) OrderResult
+        +onTick() void
+        +shutdown() void
+        +initMcPort(server, dispatcher) void
+    }
+
+    %% ── P15 Monitor ──
+    class PerfMonitor {
+        -long[] tpsRing
+        -long[] msptRing
+        -long[] heapRing
+        -int[] chunkRing
+        -int[] entityRing
+        -Map~String,PluginPerf~ pluginPerfMap
+        +sample() void
+        +getCurrentTPS() double
+        +getCurrentMSPT() double
+        +recordPluginOrder(pluginId, durationMs, success) void
+        +snapshot(reason) PerfSnapshot
+    }
+
+    class LagGuard {
+        -Map~String,Deque~ violationTimes
+        -Map~String,Long~ activeCalls
+        -long timeoutMs
+        +guard(pluginId, command, action) boolean
+        +isViolating(pluginId) boolean
+        +getViolationCount(pluginId) int
+    }
+
+    class LeakDetector {
+        -int lastChunkCount
+        -int lastEntityCount
+        -Map~String,Integer~ pluginChunkContrib
+        +onTick(tickCounter) void
+        +fullScan() LeakReport
+        +detectOrphanedListeners() int
+        +getChunkDelta() int
+    }
+
+    class CrashGuard {
+        -Map~String,Deque~ crashTimes
+        -Set~String~ autoDemoted
+        +execute(pluginId, command, action) OrderResult
+        +isAutoDemoted(pluginId) boolean
+        +getCrashCount(pluginId) int
+    }
+
+    class AutoSave {
+        -int saveIntervalTicks
+        -int tpsLowTickCount
+        +tick() void
+        +forceSave() void
+        +forceSaveAll() void
+        +setInterval(ticks) void
+    }
+
+    %% ── P16 Security ──
+    class PermissionNode {
+        -Set~String~ registeredNodes
+        -Map~String,PluginPermissions~ pluginPerms
+        +registerPlugin(pluginId) PluginPermissions
+        +hasPermission(src, node) boolean
+        +registerToMc(dispatcher) void
+    }
+
+    class CommandWhitelist {
+        -Map~String,Map~ whitelist
+        +registerCommand(pluginId, cmdName, handler) void
+        +dispatch(pluginId, cmdName, args, src) OrderResult
+        +isCommandAllowed(pluginId, trust) boolean
+    }
+
+    class NetworkAudit {
+        -NetworkEntry[] entries
+        -Map~String,PluginNetworkStats~ statsMap
+        +logOutbound(pluginId, target, sizeBytes, latencyMs, trust) void
+        +logInbound(source, packetType, sizeBytes) void
+        +detectBurst(pluginId) boolean
+        +detectAnomaly(pluginId) boolean
+        +getStats(pluginId) PluginNetworkStats
+    }
+
+    class BanHammer {
+        -Set~String~ signatureBlacklist
+        -Set~String~ bannedPlugins
+        -Map~String,Integer~ behaviorScores
+        -Path banFile
+        +autoReview() void
+        +banPlugin(pluginId, reason) void
+        +unbanPlugin(pluginId) void
+        +isBanned(pluginId) boolean
+        +saveBans() void
+        +loadBans() void
+    }
+
+    %% ── API Types ──
+    class TrustLevel {
+        <<enumeration>>
+        N
+        R
+        A
+        S
+        BLACKLISTED
+        UNKNOWN
+    }
+
+    %% ── Existing ──
+    class AuditLogger {
+        +log(trust, pluginId, category, detail) void
+        +logTrusted(pluginId, category, detail, caller, callee) void
+    }
+    class PluginLoader {
+        +getPlugin(pluginId) PluginDescriptor
+        +getAllPlugins() Collection
+    }
+    class ZCSNetwork {
+        +sendStandard(args) OrderResult
+        +flushAndSend(jsonPayload, hmacSignature) void
+    }
+    class ZCSLEventBus {
+        +register(listener, ownerId, trust) void
+        +post(event) T
+        +unregisterAll(ownerId) int
+    }
+    class McPort {
+        +tick() TickAPI
+        +world() WorldAPI
+        +fireTickEnd() void
+    }
+
+    %% ── Relationships ──
+    ZCSKernel *-- PerfMonitor
+    ZCSKernel *-- LagGuard
+    ZCSKernel *-- LeakDetector
+    ZCSKernel *-- CrashGuard
+    ZCSKernel *-- AutoSave
+    ZCSKernel *-- PermissionNode
+    ZCSKernel *-- CommandWhitelist
+    ZCSKernel *-- NetworkAudit
+    ZCSKernel *-- BanHammer
+
+    PerfMonitor --> AuditLogger : writes alerts
+    PerfMonitor --> McPort : reads TPS/entities
+
+    LagGuard --> AuditLogger : writes timeout
+    LagGuard --> PerfMonitor : records timeout as FAIL
+
+    LeakDetector --> ZCSLEventBus : scans orphaned listeners
+    LeakDetector --> AuditLogger : writes leak warnings
+
+    CrashGuard --> AuditLogger : writes crash
+    CrashGuard --> PluginLoader : demotes trust
+
+    AutoSave --> PerfMonitor : reads TPS for emergency
+
+    CommandWhitelist --> PermissionNode : checks permissions
+    CommandWhitelist --> ZCSKernel : kernel reference
+
+    NetworkAudit --> ZCSNetwork : intercepts packets
+    NetworkAudit --> AuditLogger : writes anomalies
+
+    BanHammer --> CrashGuard : reads crash count
+    BanHammer --> LagGuard : reads violation count
+    BanHammer --> LeakDetector : reads leak delta
+    BanHammer --> NetworkAudit : reads anomalies
+    BanHammer --> PluginLoader : blocks loading
+    BanHammer --> AuditLogger : writes ban events
+
+    TrustLevel .. ZCSKernel : gating

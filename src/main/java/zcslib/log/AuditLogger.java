@@ -29,6 +29,16 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class AuditLogger {
 
+    // ── Recent entries ring buffer (for /zcslib debug audit) ─
+    public record AuditEntry(zcslib.api.TrustLevel trust, String pluginId,
+                             String category, String detail) {}
+
+    private static final int RECENT_MAX = 50;
+    private final AuditEntry[] recent = new AuditEntry[RECENT_MAX];
+    private int recentIdx = 0;
+    private int recentCount = 0;
+    private final Object recentLock = new Object();
+
     private static final DateTimeFormatter TS =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
@@ -56,6 +66,8 @@ public class AuditLogger {
             case R  -> "R";
             case A  -> "A";
             case S  -> "S";
+            case BLACKLISTED -> "BLACKLISTED";
+            case UNKNOWN -> "UNKNOWN";
         };
 
         // Date-based filename: {pluginId}_{yyyy-MM-dd}.log
@@ -84,6 +96,12 @@ public class AuditLogger {
                     w.flush();
                 }
             }
+            // Ring buffer
+            synchronized (recentLock) {
+                recent[recentIdx] = new AuditEntry(trust, pluginId, category, detail);
+                recentIdx = (recentIdx + 1) % RECENT_MAX;
+                if (recentCount < RECENT_MAX) recentCount++;
+            }
         } catch (Exception e) {
             System.err.println("[ZCSLIB] AuditLogger write failure: " + e.getMessage());
         }
@@ -100,6 +118,22 @@ public class AuditLogger {
         String full = String.format("[%s] caller=%s callee=%s — %s",
                 severity, caller.name(), callee.name(), detail);
         log(caller, pluginId, category, full);
+    }
+
+    /**
+     * Return the most recent {@code n} audit entries (ring buffer).
+     */
+    public java.util.List<AuditEntry> getRecent(int n) {
+        java.util.List<AuditEntry> list = new java.util.ArrayList<>();
+        synchronized (recentLock) {
+            int count = Math.min(n, recentCount);
+            int start = (recentIdx - count + RECENT_MAX) % RECENT_MAX;
+            for (int i = 0; i < count; i++) {
+                AuditEntry e = recent[(start + i) % RECENT_MAX];
+                if (e != null) list.add(e);
+            }
+        }
+        return list;
     }
 
     /**

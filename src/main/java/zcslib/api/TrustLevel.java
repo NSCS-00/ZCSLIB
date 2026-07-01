@@ -16,7 +16,13 @@ public enum TrustLevel {
     A("Auto-Adapt"),
 
     /** Suspicious Mod — no PEC, no friendly traits, sandboxed with heavy restrictions. */
-    S("Suspicious");
+    S("Suspicious"),
+
+    /** Blacklisted — banned by BanHammer. All order() calls rejected. Plugins skipped at load. */
+    BLACKLISTED("Blacklisted"),
+
+    /** Raw Jar — no identifying traits whatsoever. Rejected at load time. */
+    UNKNOWN("Unknown");
 
     private final String label;
 

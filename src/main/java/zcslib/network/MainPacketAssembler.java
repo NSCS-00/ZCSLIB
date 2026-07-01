@@ -45,20 +45,11 @@ public class MainPacketAssembler {
     /**
      * Assemble the main packet payload and send.
      * Called by kernel at tick-end.
+     * <p>
+     * Always injects a {@code __zcslib__} heartbeat entry with
+     * runtime metrics (cpu_load, memory_usage, active_plugins).
      */
     public void flush() {
-        if (buffer.isEmpty()) {
-            // Heartbeat
-            if (!lastWasHeartbeat) {
-                network.flushAndSend("[]", null); // empty packets + heartbeat marker
-                lastWasHeartbeat = true;
-            }
-            return;
-        }
-
-        lastWasHeartbeat = false;
-
-        // Deduplicate: per plugin+name, keep latest
         List<Entry> merged = deduplicate(buffer);
 
         // Sort by priority (lower number = higher priority) then by timestamp
@@ -67,18 +58,49 @@ public class MainPacketAssembler {
             return p != 0 ? p : Long.compare(a.timestamp, b.timestamp);
         });
 
-        // Build JSON array of sub-packets
+        // Build JSON array of sub-packets, always ending with __zcslib__ heartbeat
         StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < merged.size(); i++) {
-            if (i > 0) sb.append(",");
-            sb.append(merged.get(i).toJson());
+        int written = 0;
+        for (Entry entry : merged) {
+            if (written++ > 0) sb.append(",");
+            sb.append(entry.toJson());
         }
+        // Inject heartbeat
+        if (written > 0) sb.append(",");
+        sb.append(buildHeartbeat());
         sb.append("]");
+
+        lastWasHeartbeat = merged.isEmpty();
 
         // Clear buffer for next tick
         buffer.clear();
 
         network.flushAndSend(sb.toString(), null);
+    }
+
+    // ── Heartbeat ─────────────────────────────────────────────
+
+    private String buildHeartbeat() {
+        double cpuLoad = getCpuLoad();
+        String memUsage = getMemoryUsage();
+        int activePlugins = network.getKernel().getPluginCount();
+        return String.format(
+                "{\"name\":\"__zcslib__\",\"protocol\":\"HEARTBEAT\"," +
+                "\"heartbeat\":{\"cpu_load\":%.2f,\"memory_usage\":\"%s\",\"active_plugins\":%d}}",
+                cpuLoad, memUsage, activePlugins);
+    }
+
+    private double getCpuLoad() {
+        double load = java.lang.management.ManagementFactory
+                .getOperatingSystemMXBean()
+                .getSystemLoadAverage();
+        return load < 0 ? 0.0 : load;
+    }
+
+    private String getMemoryUsage() {
+        long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+        long mb = used / (1024 * 1024);
+        return String.format("%dMB", mb);
     }
 
     /**

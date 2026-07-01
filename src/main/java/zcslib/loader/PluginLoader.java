@@ -10,6 +10,7 @@ import zcslib.pec.PECSchema;
 import zcslib.pec.PECValidator;
 import zcslib.pec.PECVerdict;
 import zcslib.resource.ZCSResourceManager;
+import zcslib.security.BanHammer;
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
@@ -88,6 +89,13 @@ public class PluginLoader {
         Arrays.sort(jarFiles, Comparator.comparing(File::getName));
 
         for (File jarFile : jarFiles) {
+            // P16: Skip banned JARs
+            if (kernel.getBanHammer() != null
+                    && kernel.getBanHammer().isSignatureBlacklisted(jarFile.getName())) {
+                LOGGER.info("[ZCSLIB] {} is signature-blacklisted — skipping.", jarFile.getName());
+                continue;
+            }
+
             PluginDescriptor desc = loadJar(jarFile);
             if (desc != null) {
                 plugins.put(desc.getPluginId(), desc);
@@ -119,7 +127,7 @@ public class PluginLoader {
 
             // Step 3: Classify trust
             TrustLevel trust = PECValidator.classify(pec, hasDlzPackage, hasAutoAdapt, hasModsToml);
-            if (trust == null) {
+            if (trust == TrustLevel.UNKNOWN) {
                 LOGGER.warn("[ZCSLIB] {} is UNKNOWN — no PEC, no friendly traits, no mods.toml. Rejected.", jarName);
                 return null;
             }
@@ -147,6 +155,10 @@ public class PluginLoader {
 
             PluginContext ctx = createContext(pluginId, trust);
 
+            // Register early so resolveTrust() works during plugin constructor
+            plugins.put(pluginId, new PluginDescriptor(
+                    pluginId, version, display, trust, null, null, pec, ctx));
+
             // Step 6: Load and instantiate (N-level only)
             Object mainInstance = null;
             PluginClassLoader cl = null;
@@ -158,6 +170,7 @@ public class PluginLoader {
                         PluginLoader.class.getClassLoader());
                 mainInstance = instantiatePlugin(cl, pec.entrypoint.mainClass, ctx);
                 if (mainInstance == null) {
+                    plugins.remove(pluginId); // undo early registration
                     LOGGER.error("[ZCSLIB] Failed to instantiate {} — skipping.", pluginId);
                     try { cl.close(); } catch (IOException ignored) {}
                     return null;
@@ -238,5 +251,49 @@ public class PluginLoader {
 
     public int getPluginCount() {
         return pluginCount;
+    }
+
+    // ── P16: Trust demotion / ban support ──────────────────
+
+    /**
+     * Demote a plugin's trust level (CrashGuard auto-demotion, BanHammer ban).
+     * Creates a new PluginDescriptor with the new trust level and replaces the old one.
+     *
+     * @param pluginId plugin to demote
+     * @param newTrust new trust level (typically S or BLACKLISTED)
+     */
+    public void demotePlugin(String pluginId, TrustLevel newTrust) {
+        PluginDescriptor old = plugins.get(pluginId);
+        if (old == null) return;
+
+        if (old.getTrustLevel() == newTrust) return; // no change needed
+
+        // Update the context's trust level so ctx.getTrustLevel() stays consistent
+        if (old.getContext() instanceof SimplePluginContext spc) {
+            spc.setTrustLevel(newTrust);
+        }
+
+        PluginDescriptor demoted = new PluginDescriptor(
+                old.getPluginId(),
+                old.getVersion(),
+                old.getDisplayName(),
+                newTrust,
+                old.getMainInstance(),
+                old.getClassLoader(),
+                old.getPec(),
+                old.getContext()
+        );
+
+        plugins.put(pluginId, demoted);
+        LOGGER.info("[ZCSLIB] [{}] {} trust demoted: {} → {}",
+                pluginId, old.getDisplayName(), old.getTrustLevel(), newTrust);
+    }
+
+    /**
+     * Mark a plugin as banned (used by BanHammer).
+     * Delegates to {@link #demotePlugin(String, TrustLevel)} with BLACKLISTED.
+     */
+    public void markAsBanned(String pluginId) {
+        demotePlugin(pluginId, TrustLevel.BLACKLISTED);
     }
 }

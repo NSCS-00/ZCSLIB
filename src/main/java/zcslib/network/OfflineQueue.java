@@ -32,7 +32,7 @@ public class OfflineQueue {
     private static final ZCSLogger LOG = ZCSLogger.forKernel("offline-queue");
     private static final long MAX_QUEUE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
-    public enum Strategy { RETRY_LATER, DISCARD }
+    public enum Strategy { RETRY_LATER, DISCARD, DEGRADE_TO_STANDARD }
 
     private final ZCSNetwork network;
     private Strategy strategy = Strategy.RETRY_LATER;

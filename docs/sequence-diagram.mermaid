@@ -1,0 +1,119 @@
+sequenceDiagram
+    participant MC as MinecraftServer
+    participant Kernel as ZCSKernel
+    participant Tick as TickAPI
+    participant Perf as PerfMonitor
+    participant Leak as LeakDetector
+    participant Auto as AutoSave
+    participant Audit as AuditLogger
+
+    MC->>Kernel: onTick() (each server tick)
+    Kernel->>Tick: fireTickEnd()
+    Tick->>Tick: MSPT ring buffer update
+    Tick->>Tick: tickEndHooks.forEach()
+
+    Kernel->>Perf: sample()
+    Perf->>Tick: getAverageTPS()
+    Tick-->>Perf: tps
+    Perf->>Tick: getMSPT()
+    Tick-->>Perf: mspt
+    Perf->>Perf: Runtime.getRuntime() → heap
+    Perf->>Perf: write ring buffer
+
+    alt TPS < 15 or MSPT > 48
+        Perf->>Audit: log(WARN, "PERF_CRITICAL", detail)
+    end
+
+    Kernel->>Leak: onTick(tickCounter)
+    alt tickCounter % 1200 == 0 (quick scan)
+        Leak->>Leak: compare chunk/entity delta
+        alt chunkDelta > 50
+            Leak->>Audit: log(WARN, "CHUNK_LEAK", detail)
+        end
+    end
+
+    Kernel->>Auto: tick()
+    Auto->>Perf: getCurrentTPS()
+    Perf-->>Auto: tps
+    alt tps < 10
+        Auto->>Auto: tpsLowTickCount++
+        alt tpsLowTickCount >= 5
+            Auto->>MC: saveAllChunks(false)
+            Auto->>Audit: log(WARN, "EMERGENCY_SAVE", detail)
+        end
+    else tps >= 10
+        Auto->>Auto: tpsLowTickCount = 0
+    end
+
+---
+
+## Diagram 2: Plugin Crash Isolation (CrashGuard)
+
+sequenceDiagram
+    participant Plugin as Plugin (S-level)
+    participant Kernel as ZCSKernel
+    participant CG as CrashGuard
+    participant PL as PluginLoader
+    participant Audit as AuditLogger
+    participant BH as BanHammer
+
+    Plugin->>Kernel: orderTraced("badPlug", "mcapi:tps")
+    Kernel->>CG: execute("badPlug", "mcapi:tps", action)
+
+    CG->>CG: try { action.get() }
+    Note over CG: Plugin throws RuntimeException!
+
+    CG->>CG: catch(Exception e)
+    CG->>CG: recordCrash("badPlug", e)
+    CG->>Audit: log(S, "badPlug", "CRASH_ISOLATED", detail)
+
+    CG->>CG: getCrashCount("badPlug")
+    alt crashCount > 5 in 60s
+        CG->>PL: demoteTrust("badPlug", S)
+        CG->>Audit: log(S, "badPlug", "AUTO_DEMOTE", "TrustLevel → S")
+        CG->>BH: addScore("badPlug", 30, "frequent crashes")
+    end
+
+    CG-->>Kernel: OrderResult.fail("CRASH_ISOLATED: RuntimeException: ...")
+    Kernel-->>Plugin: OrderResult{ok=false, error="CRASH_ISOLATED: ..."}
+
+    Note over Plugin,Kernel: Other plugins continue running unaffected
+
+---
+
+## Diagram 3: BanHammer Auto-Isolation
+
+sequenceDiagram
+    participant Kernel as ZCSKernel
+    participant BH as BanHammer
+    participant CG as CrashGuard
+    participant LG as LagGuard
+    participant LD as LeakDetector
+    participant NA as NetworkAudit
+    participant PL as PluginLoader
+    participant Audit as AuditLogger
+
+    Kernel->>BH: autoReview() (every 20 ticks)
+
+    loop For each loaded plugin
+        BH->>CG: getCrashCount(pluginId)
+        CG-->>BH: 6 crashes
+        BH->>LG: getViolationCount(pluginId)
+        LG-->>BH: 4 violations
+        BH->>LD: getChunkDelta()
+        LD-->>BH: 72 chunk leak
+        BH->>NA: detectAnomaly(pluginId)
+        NA-->>BH: true (burst detected)
+
+        BH->>BH: score = 30 + 25 + 15 + 20 = 90
+        Note over BH: Score 90 >= threshold 80 → BAN
+
+        BH->>PL: markPluginAsBanned(pluginId)
+        BH->>Audit: log(S, pluginId, "BAN_EXECUTED", "score=90 reason=crash(6)+violation(4)+chunk(72)+network_anomaly")
+        BH->>BH: bannedPlugins.add(pluginId)
+        BH->>BH: saveBans() → bans.json
+    end
+
+    Note over Kernel: Next time plugin calls order():
+    Kernel->>Kernel: resolveTrust("badPlug") → BLACKLISTED
+    Kernel->>Kernel: dispatch0: trust == BLACKLISTED → reject

@@ -70,4 +70,19 @@ public class ResourceSandbox {
     public Path getRoot() {
         return root;
     }
+
+    /**
+     * Normalize a shared resource path — strips leading slashes,
+     * prevents directory traversal, returns the safe relative component.
+     * Used by {@link ZCSResourceManager#getSharedResource(String)}.
+     */
+    public static String normalizeShared(String relativePath) {
+        String clean = relativePath.replace('\\', '/');
+        while (clean.startsWith("/")) clean = clean.substring(1);
+        // Reject traversal attempts
+        if (clean.contains("..") || clean.startsWith("~")) {
+            throw new SecurityException("SANDBOX: Path escape denied — '" + relativePath + "'");
+        }
+        return clean;
+    }
 }

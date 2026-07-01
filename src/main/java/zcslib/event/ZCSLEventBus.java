@@ -45,6 +45,12 @@ public class ZCSLEventBus {
             "zcslib.event.ZCSLEventBus."
     );
 
+    /** Player event class name prefixes — S-level may subscribe but audited. */
+    private static final Set<String> PLAYER_EVENT_PACKAGES = Set.of(
+            "net.neoforged.neoforge.event.entity.player.",
+            "net.neoforged.neoforge.event.entity.living."
+    );
+
     private final ZCSLogger logger;
 
     public ZCSLEventBus(ZCSLogger logger) {
@@ -86,7 +92,7 @@ public class ZCSLEventBus {
             }
 
             method.setAccessible(true);
-            HandlerEntry entry = new HandlerEntry(listener, method, ann.priority(), ann.ignoreCancelled());
+            HandlerEntry entry = new HandlerEntry(listener, method, ann.priority(), ann.ignoreCancelled(), trust, ownerId);
 
             handlers.computeIfAbsent(eventType, k -> new CopyOnWriteArrayList<>())
                     .add(entry);
@@ -127,8 +133,16 @@ public class ZCSLEventBus {
         List<HandlerEntry> sorted = new ArrayList<>(entries);
         sorted.sort(Comparator.comparingInt(e -> e.priority.ordinal()));
 
+        boolean isPlayerEvent = isPlayerEvent(eventType);
+
         for (HandlerEntry entry : sorted) {
             if (cancelled && entry.ignoreCancelled) continue;
+
+            // Audit: S-level listeners handling player events
+            if (entry.trust == TrustLevel.S && isPlayerEvent) {
+                logger.warn("AUDIT: [S] plugin '{}' handled player event {} via {}",
+                        entry.ownerId, eventType.getSimpleName(), entry.method.getName());
+            }
 
             try {
                 entry.method.invoke(entry.listener, event);
@@ -210,11 +224,21 @@ public class ZCSLEventBus {
         return false;
     }
 
+    private boolean isPlayerEvent(Class<?> eventType) {
+        String name = eventType.getName();
+        for (String prefix : PLAYER_EVENT_PACKAGES) {
+            if (name.startsWith(prefix)) return true;
+        }
+        return false;
+    }
+
     // ── handler entry ───────────────────────────────────────
 
     private record HandlerEntry(
             Object listener,
             Method method,
             EventPriority priority,
-            boolean ignoreCancelled) {}
+            boolean ignoreCancelled,
+            TrustLevel trust,
+            String ownerId) {}
 }

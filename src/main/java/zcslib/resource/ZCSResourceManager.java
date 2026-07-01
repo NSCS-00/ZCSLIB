@@ -13,8 +13,10 @@ import java.util.concurrent.ConcurrentMap;
  * <p>Creates and enforces the directory hierarchy:
  * <pre>{@code
  * config/DLZstudio/ZCSLIB/
- * ├── global/            # kernel-wide (PDC backend)
+ * ├── global/            # kernel-wide shared data (PDC backend)
  * ├── shared_res/        # shared read-only resources
+ * ├── external/          # external read-only resources
+ * ├── studio/            # DLZstudio-specific shared assets
  * ├── cache/             # global cache
  * └── plugins/
  *     └── {plugin_id}/
@@ -22,13 +24,23 @@ import java.util.concurrent.ConcurrentMap;
  *         └── data/
  * }</pre>
  *
- * <p>Routes {@code kernel.order("resource:file", "/config/server.json")} calls
- * to the correct plugin sandbox.
+ * <p>Virtual paths:
+ * <ul>
+ *   <li>{@code /config/*} — plugin-specific writable config (all trust levels)</li>
+ *   <li>{@code /data/*}   — plugin-specific writable data (all trust levels)</li>
+ *   <li>{@code /cache/*}  — auto-managed cache dir (all trust levels)</li>
+ *   <li>{@code /shared/*} — read-only shared resources (N/R/A only)</li>
+ *   <li>{@code /global/*} — read-only global config (N/R/A only)</li>
+ *   <li>{@code /external/*} — read-only external mounts (N only)</li>
+ *   <li>{@code /studio/*} — DLZstudio internal assets (N only)</li>
+ * </ul>
  */
 public class ZCSResourceManager {
     private final Path rootDir;
     private final Path globalDir;
     private final Path sharedDir;
+    private final Path externalDir;
+    private final Path studioDir;
     private final Path globalCacheDir;
     private final Path pluginsDir;
 
@@ -39,6 +51,8 @@ public class ZCSResourceManager {
         this.rootDir = gameDir.resolve("config").resolve("DLZstudio").resolve("ZCSLIB");
         this.globalDir = rootDir.resolve("global");
         this.sharedDir = rootDir.resolve("shared_res");
+        this.externalDir = rootDir.resolve("external");
+        this.studioDir = rootDir.resolve("studio");
         this.globalCacheDir = rootDir.resolve("cache");
         this.pluginsDir = rootDir.resolve("plugins");
     }
@@ -47,6 +61,8 @@ public class ZCSResourceManager {
     public void init() throws IOException {
         Files.createDirectories(globalDir);
         Files.createDirectories(sharedDir);
+        Files.createDirectories(externalDir);
+        Files.createDirectories(studioDir);
         Files.createDirectories(globalCacheDir);
         Files.createDirectories(pluginsDir);
     }
@@ -88,10 +104,60 @@ public class ZCSResourceManager {
         return quotas.get(pluginId);
     }
 
+    /** Check if a path exists in the plugin's sandbox or shared directories. */
+    public boolean exists(String pluginId, String virtualPath) {
+        ResourceSandbox sandbox = sandboxes.get(pluginId);
+        if (sandbox != null) {
+            File f = sandbox.resolve(virtualPath);
+            if (f.exists()) return true;
+        }
+        // Also check shared/global/external/studio
+        Path p = mapSharedPath(virtualPath);
+        return p != null && Files.exists(p);
+    }
+
+    /**
+     * Get a shared read-only resource. Only N/R/A trust levels.
+     * Searches: shared_res/ → global/ → external/ → studio/ in that order.
+     *
+     * @return InputStream or null if not found
+     */
+    public java.io.InputStream getSharedResource(String relativePath) throws IOException {
+        Path p = mapSharedPath(relativePath);
+        if (p != null && Files.isRegularFile(p)) {
+            return Files.newInputStream(p);
+        }
+        return null;
+    }
+
+    /** Get the cache directory for a specific plugin. */
+    public File getCacheDir(String pluginId) {
+        Path cachePath = globalCacheDir.resolve(pluginId);
+        cachePath.toFile().mkdirs();
+        return cachePath.toFile();
+    }
+
+    /**
+     * Map a relative path to the first matching shared directory.
+     * Priority: shared_res/ → global/ → external/ → studio/
+     */
+    private Path mapSharedPath(String relativePath) {
+        String safe = ResourceSandbox.normalizeShared(relativePath);
+        Path safePath = Path.of(safe);
+        Path[] dirs = { sharedDir, globalDir, externalDir, studioDir };
+        for (Path dir : dirs) {
+            Path candidate = dir.resolve(safePath).normalize();
+            if (Files.exists(candidate)) return candidate;
+        }
+        return sharedDir.resolve(safePath); // first choice even if not exists
+    }
+
     // ── Accessors ────────────────────────────────────────────
 
     public Path getGlobalDir()      { return globalDir; }
     public Path getSharedDir()      { return sharedDir; }
+    public Path getExternalDir()    { return externalDir; }
+    public Path getStudioDir()      { return studioDir; }
     public Path getGlobalCacheDir() { return globalCacheDir; }
     public Path getPluginsDir()     { return pluginsDir; }
     public Path getRootDir()        { return rootDir; }

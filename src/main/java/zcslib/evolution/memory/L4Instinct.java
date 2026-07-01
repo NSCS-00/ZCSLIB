@@ -56,15 +56,30 @@ public class L4Instinct {
     // —— Hardcoded rules (universal) ——
 
     private static final List<InstinctRule> HARDCODED = List.of(
+            // —— JVM-level threats (universal) ——
             new InstinctRule("System::exit", Verdict.BLOCK, "JVM shutdown attempt"),
             new InstinctRule("Runtime::halt", Verdict.BLOCK, "JVM halt attempt"),
+            new InstinctRule("Runtime::exec", Verdict.BLOCK, "外部命令执行"),
             new InstinctRule("ProcessBuilder::start", Verdict.MONITOR, "External process spawn"),
+            new InstinctRule("System::loadLibrary", Verdict.BLOCK, "本地代码加载"),
+            new InstinctRule("System::setSecurityMgr", Verdict.BLOCK, "试图覆盖安全管理器"),
+            new InstinctRule("Runtime::addShutdownHook", Verdict.MONITOR, "试图注册关闭钩子"),
             new InstinctRule("ClassLoader::defineClass", Verdict.BLOCK, "Dynamic class injection"),
+            new InstinctRule("URLClassLoader::new", Verdict.BLOCK, "动态类加载"),
+            new InstinctRule("Thread::setContextClassLoader", Verdict.MONITOR, "类加载器篡改"),
             new InstinctRule("Unsafe::allocateInstance", Verdict.MONITOR, "Unsafe allocation"),
             new InstinctRule("Reflection::setAccessible", Verdict.MONITOR, "Reflective access escalation"),
             new InstinctRule("Thread::stop", Verdict.BLOCK, "Deprecated Thread.stop()"),
             new InstinctRule("Socket::connect", Verdict.MONITOR, "Direct socket connection"),
-            new InstinctRule("File::deleteOnExit", Verdict.MONITOR, "Delete-on-exit registration")
+            // —— File system threats ——
+            new InstinctRule("Files::delete", Verdict.MONITOR, "文件删除（沙箱逃逸）"),
+            new InstinctRule("Files::write", Verdict.MONITOR, "文件写入（沙箱逃逸）"),
+            new InstinctRule("FileOutputStream::write", Verdict.MONITOR, "直接文件写入"),
+            new InstinctRule("File::deleteOnExit", Verdict.MONITOR, "Delete-on-exit registration"),
+            // —— MC server-specific threats ——
+            new InstinctRule("MinecraftServer::halt", Verdict.BLOCK, "服务器停止尝试"),
+            new InstinctRule("MinecraftServer::close", Verdict.BLOCK, "服务器关闭尝试"),
+            new InstinctRule("ServerLifecycleHooks", Verdict.MONITOR, "服务器生命周期挂载")
     );
 
     private final List<InstinctRule> dynamicRules = new ArrayList<>();

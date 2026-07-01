@@ -39,7 +39,7 @@ public class ZCSLogger {
      */
     /** Create a logger for kernel-internal subsystems. */
     public static ZCSLogger forKernel(String subSystem) {
-        return new ZCSLogger("zcslib/" + subSystem, TrustLevel.N,
+        return new ZCSLogger(subSystem, TrustLevel.N,
                 Path.of("logs", "zcslib"));
     }
 
@@ -83,7 +83,9 @@ public class ZCSLogger {
         for (int i = 0; i < args.length; i++) {
             strings[i] = String.valueOf(args[i]);
         }
-        String safeFormat = format.replaceAll("%[dfxX]", "%s");
+        String safeFormat = format
+                .replaceAll("%[dfxX]", "%s")    // C-style → String.format
+                .replace("{}", "%s");            // SLF4J-style → String.format
         return String.format(safeFormat, (Object[]) strings);
     }
 

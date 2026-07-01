@@ -99,7 +99,7 @@ public class PECValidator {
         if (hasDlzPackage) return TrustLevel.R;
         if (hasAutoAdapt) return TrustLevel.A;
         if (hasModsToml) return TrustLevel.S;
-        return null; // UNKNOWN → reject
+        return TrustLevel.UNKNOWN; // Raw jar — no identifying traits
     }
 
     // ── Helpers ──────────────────────────────────────────────
